@@ -1,3 +1,16 @@
+### 1.0.2
+
+2025-11-08 08:39
+
+#### NEW
+
+- DE, ES, FR, IT localizations
+- Help and Changelog tabs in admin panel
+
+#### IMPROVED
+
+- Major README overhaul
+
 ### 1.0.1
 
 2025-11-08 06:40
