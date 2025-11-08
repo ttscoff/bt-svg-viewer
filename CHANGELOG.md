@@ -4,7 +4,6 @@
 
 #### FIXED
 
-- Changelog duplication
 - Fixing deploy process
 
 ### 1.0.3
