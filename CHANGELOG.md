@@ -1,3 +1,16 @@
+### 1.0.1
+
+2025-11-08 06:40
+
+#### NEW
+
+- Admin panel where you can create custom SVG posts with all configuration options stored
+- Buttons can be configured to left, right, top, bottom
+- Buttons can be configured to icon, text, or both
+- Buttons can be configured with custom settings to display only certain buttons, define left/right alignment, and more
+- Preview in admin panel shows how buttons will appear
+- Preview in admin panel can be panned/zoomed and then its current state can be saved as the initial state for the front-end display
+
 ## wp-svg-viewer 1.0.0
 
 2025-11-07 08:00
