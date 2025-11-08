@@ -1,3 +1,12 @@
+### 1.0.4
+
+2025-11-08 08:54
+
+#### FIXED
+
+- Changelog duplication
+- Fixing deploy process
+
 ### 1.0.3
 
 2025-11-08 08:47
