@@ -922,11 +922,11 @@ class SVG_Viewer
             $preset_data = $this->get_preset_settings($preset_id);
 
             if (!$preset_data) {
-                /* translators: %s: Requested preset ID. */
                 $error_message = sprintf(
                     '<div style="color: red; padding: 10px; border: 1px solid red;">%s</div>',
                     esc_html(
                         sprintf(
+                            /* translators: %s: Requested preset ID. */
                             __('Error: SVG preset not found for ID %s.', 'wp-svg-viewer'),
                             $atts['id']
                         )
@@ -1091,7 +1091,7 @@ class SVG_Viewer
             <?php endif; ?>
             <div class="<?php echo esc_attr($main_class_attribute); ?>" data-viewer="<?php echo esc_attr($viewer_id); ?>">
                 <?php if ($controls_markup !== ''): ?>
-                    <?php echo wp_kses_post($controls_markup); ?>
+                    <?php echo wp_kses($controls_markup, $this->get_controls_allowed_html()); ?>
                 <?php endif; ?>
                 <div class="svg-container" style="height: <?php echo esc_attr($atts['height']); ?>"
                     data-viewer="<?php echo esc_attr($viewer_id); ?>">
@@ -1628,7 +1628,7 @@ class SVG_Viewer
                                 <div class="<?php echo esc_attr($main_class_attribute); ?>"
                                     data-viewer="<?php echo esc_attr($viewer_id); ?>">
                                     <?php if ($preview_controls_markup !== ''): ?>
-                                        <?php echo wp_kses_post($preview_controls_markup); ?>
+                                        <?php echo wp_kses($preview_controls_markup, $this->get_controls_allowed_html()); ?>
                                     <?php endif; ?>
                                     <div class="svg-container" data-viewer="<?php echo esc_attr($viewer_id); ?>"
                                         style="height: <?php echo esc_attr($values['height']); ?>">
@@ -1846,6 +1846,72 @@ class SVG_Viewer
         }
 
         return wp_kses($icon_markup, $allowed_svg_tags);
+    }
+
+    /**
+     * Allowed HTML tags and attributes for rendered controls markup.
+     *
+     * @return array<string, array<string, bool>>
+     */
+    private function get_controls_allowed_html()
+    {
+        static $allowed = null;
+
+        if ($allowed !== null) {
+            return $allowed;
+        }
+
+        $allowed = array(
+            'div' => array(
+                'class' => true,
+                'data-viewer' => true,
+                'style' => true,
+            ),
+            'span' => array(
+                'class' => true,
+                'data-viewer' => true,
+                'aria-hidden' => true,
+                'aria-live' => true,
+            ),
+            'input' => array(
+                'type' => true,
+                'class' => true,
+                'data-viewer' => true,
+                'min' => true,
+                'max' => true,
+                'step' => true,
+                'value' => true,
+                'aria-label' => true,
+                'aria-valuemin' => true,
+                'aria-valuemax' => true,
+                'aria-valuenow' => true,
+            ),
+            'button' => array(
+                'type' => true,
+                'class' => true,
+                'data-viewer' => true,
+                'title' => true,
+                'aria-label' => true,
+            ),
+            'svg' => array(
+                'xmlns' => true,
+                'viewBox' => true,
+                'viewbox' => true,
+                'aria-hidden' => true,
+                'focusable' => true,
+                'role' => true,
+                'width' => true,
+                'height' => true,
+                'class' => true,
+            ),
+            'path' => array(
+                'd' => true,
+                'fill' => true,
+                'class' => true,
+            ),
+        );
+
+        return $allowed;
     }
 
     /**
