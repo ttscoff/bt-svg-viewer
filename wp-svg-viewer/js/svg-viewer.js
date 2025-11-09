@@ -46,6 +46,13 @@ class SVGViewer {
     this.coordOutputEl = this.wrapper.querySelector(
       '[data-viewer="' + this.viewerId + '"].coord-output'
     );
+    this.zoomSliderEls = this.wrapper
+      ? Array.from(
+          this.wrapper.querySelectorAll(
+            '[data-viewer="' + this.viewerId + '"].zoom-slider'
+          )
+        )
+      : [];
 
     this.init();
   }
@@ -98,6 +105,18 @@ class SVGViewer {
 
     // Mouse wheel zoom
     this.container.addEventListener("wheel", (e) => this.handleMouseWheel(e));
+
+    if (this.zoomSliderEls && this.zoomSliderEls.length) {
+      this.zoomSliderEls.forEach((slider) => {
+        slider.addEventListener("input", (event) => {
+          const percent = parseFloat(event.target.value);
+          if (!Number.isFinite(percent)) {
+            return;
+          }
+          this.setZoom(percent / 100);
+        });
+      });
+    }
   }
 
   async loadSVG() {
@@ -261,6 +280,14 @@ class SVGViewer {
   updateZoomDisplay() {
     if (this.zoomPercentageEl) {
       this.zoomPercentageEl.textContent = Math.round(this.currentZoom * 100);
+    }
+
+    if (this.zoomSliderEls && this.zoomSliderEls.length) {
+      const sliderValue = Math.round(this.currentZoom * 100);
+      this.zoomSliderEls.forEach((slider) => {
+        slider.value = String(sliderValue);
+        slider.setAttribute("aria-valuenow", String(sliderValue));
+      });
     }
   }
 

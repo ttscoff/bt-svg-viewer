@@ -430,7 +430,18 @@ class SVG_Viewer
             $show_coords
         );
         $initial_zoom_percent = (int) round($initial_zoom * 100);
-        $controls_markup = $this->render_controls_markup($viewer_id, $controls_config, $initial_zoom_percent);
+        $min_zoom_percent_value = (int) round(max(1, floatval($atts['min_zoom'])));
+        $max_zoom_percent_value = (int) round(max($min_zoom_percent_value, floatval($atts['max_zoom'])));
+        $zoom_step_percent_value = (int) max(1, round(max(0.1, floatval($atts['zoom_step']))));
+
+        $controls_markup = $this->render_controls_markup(
+            $viewer_id,
+            $controls_config,
+            $initial_zoom_percent,
+            $min_zoom_percent_value,
+            $max_zoom_percent_value,
+            $zoom_step_percent_value
+        );
 
         $button_style_declarations = $this->get_button_color_style_declarations(
             $atts['button_fill'],
@@ -715,12 +726,25 @@ class SVG_Viewer
         $viewer_id = 'svg-viewer-admin-' . uniqid();
         $shortcode = $this->get_preset_shortcode($post->ID);
         $initial_zoom_value = is_numeric($values['initial_zoom']) ? (int) $values['initial_zoom'] : 100;
+        $min_zoom_value = is_numeric($values['min_zoom']) ? (float) $values['min_zoom'] : 25.0;
+        $max_zoom_value = is_numeric($values['max_zoom']) ? (float) $values['max_zoom'] : 800.0;
+        $zoom_step_value = is_numeric($values['zoom_step']) ? (float) $values['zoom_step'] : 10.0;
+        $min_zoom_percent_value = (int) round(max(1, $min_zoom_value));
+        $max_zoom_percent_value = (int) round(max($min_zoom_percent_value, $max_zoom_value));
+        $zoom_step_percent_value = (int) max(1, round(max(0.1, $zoom_step_value)));
         $preview_controls_config = $this->parse_controls_config(
             $values['controls_position'],
             $values['controls_buttons'],
             false
         );
-        $preview_controls_markup = $this->render_controls_markup($viewer_id, $preview_controls_config, $initial_zoom_value);
+        $preview_controls_markup = $this->render_controls_markup(
+            $viewer_id,
+            $preview_controls_config,
+            $initial_zoom_value,
+            $min_zoom_percent_value,
+            $max_zoom_percent_value,
+            $zoom_step_percent_value
+        );
 
         $wrapper_classes = array(
             'svg-viewer-wrapper',
@@ -1185,6 +1209,15 @@ class SVG_Viewer
         }
         $normalized_setting = strtolower($buttons_setting);
 
+        $tokenized_setting = strtolower(str_replace(':', ',', $buttons_setting));
+        $tokens = array_filter(array_map('trim', explode(',', $tokenized_setting)), static function ($token) {
+            return $token !== '';
+        });
+
+        $has_slider = in_array('slider', $tokens, true);
+        $slider_explicit_zoom_in = in_array('zoom_in', $tokens, true);
+        $slider_explicit_zoom_out = in_array('zoom_out', $tokens, true);
+
         $mode_options = array('icon', 'text', 'both');
         $style_options = array('compact', 'labels_on_hover', 'labels-on-hover');
         $hidden_options = array('hidden', 'none');
@@ -1195,6 +1228,9 @@ class SVG_Viewer
         if ($show_coords) {
             $default_buttons[] = 'coords';
         }
+        $default_buttons_without_zoom = array_values(array_filter($default_buttons, static function ($button) {
+            return $button !== 'zoom_in' && $button !== 'zoom_out';
+        }));
 
         $mode = 'both';
         $styles = array();
@@ -1210,6 +1246,9 @@ class SVG_Viewer
             if ($show_coords) {
                 $buttons[] = 'coords';
             }
+        } elseif ($normalized_setting === 'slider') {
+            $has_slider = true;
+            $buttons = $default_buttons_without_zoom;
         } elseif (in_array($normalized_setting, $style_options, true)) {
             $styles[] = str_replace('_', '-', $normalized_setting);
         } elseif (in_array($normalized_setting, $alignment_options, true)) {
@@ -1221,7 +1260,7 @@ class SVG_Viewer
         }
 
         if ($is_custom) {
-            $parts = array_map('trim', explode(',', $buttons_setting));
+            $parts = array_map('trim', explode(',', str_replace(':', ',', $buttons_setting)));
 
             if (!empty($parts) && strtolower($parts[0]) === 'custom') {
                 array_shift($parts);
@@ -1233,7 +1272,10 @@ class SVG_Viewer
             if (!empty($parts)) {
                 $first = strtolower($parts[0]);
 
-                if (in_array($first, $hidden_options, true)) {
+                if ($first === 'slider') {
+                    $has_slider = true;
+                    array_shift($parts);
+                } elseif (in_array($first, $hidden_options, true)) {
                     $mode = 'hidden';
                     $buttons = array();
                     $parts = array();
@@ -1254,7 +1296,10 @@ class SVG_Viewer
 
                     if (!empty($parts)) {
                         $maybe = strtolower($parts[0]);
-                        if ($custom_mode === null && in_array($maybe, $mode_options, true)) {
+                        if ($maybe === 'slider') {
+                            $has_slider = true;
+                            array_shift($parts);
+                        } elseif ($custom_mode === null && in_array($maybe, $mode_options, true)) {
                             $custom_mode = $maybe;
                             array_shift($parts);
                         } elseif (in_array($maybe, $alignment_options, true)) {
@@ -1265,7 +1310,10 @@ class SVG_Viewer
 
                     if (!empty($parts)) {
                         $maybe = strtolower($parts[0]);
-                        if (in_array(str_replace('-', '_', $maybe), $style_options, true) || in_array($maybe, $style_options, true)) {
+                        if ($maybe === 'slider') {
+                            $has_slider = true;
+                            array_shift($parts);
+                        } elseif (in_array(str_replace('-', '_', $maybe), $style_options, true) || in_array($maybe, $style_options, true)) {
                             $custom_styles[] = str_replace('_', '-', $maybe);
                             array_shift($parts);
                         }
@@ -1280,6 +1328,10 @@ class SVG_Viewer
                     if ($key === '') {
                         continue;
                     }
+                    if ($key === 'slider') {
+                        $has_slider = true;
+                        continue;
+                    }
                     if ($key === 'coords' && !$show_coords) {
                         continue;
                     }
@@ -1290,6 +1342,8 @@ class SVG_Viewer
 
                 if (!empty($custom_buttons)) {
                     $buttons = $custom_buttons;
+                } elseif ($has_slider) {
+                    $buttons = $default_buttons_without_zoom;
                 } else {
                     $buttons = $default_buttons;
                 }
@@ -1332,12 +1386,25 @@ class SVG_Viewer
         }, $styles);
         $styles = array_values(array_unique($styles));
 
+        if ($has_slider && !$slider_explicit_zoom_in) {
+            $buttons = array_values(array_filter($buttons, static function ($button) {
+                return $button !== 'zoom_in';
+            }));
+        }
+
+        if ($has_slider && !$slider_explicit_zoom_out) {
+            $buttons = array_values(array_filter($buttons, static function ($button) {
+                return $button !== 'zoom_out';
+            }));
+        }
+
         return array(
             'position' => $position,
             'mode' => $mode,
             'styles' => $styles,
             'alignment' => $alignment,
             'buttons' => $buttons,
+            'has_slider' => $has_slider,
         );
     }
 
@@ -1499,8 +1566,14 @@ class SVG_Viewer
      * @param int    $initial_zoom_percent
      * @return string
      */
-    private function render_controls_markup($viewer_id, array $controls_config, $initial_zoom_percent)
-    {
+    private function render_controls_markup(
+        $viewer_id,
+        array $controls_config,
+        $initial_zoom_percent,
+        $min_zoom_percent,
+        $max_zoom_percent,
+        $zoom_step_percent
+    ) {
         if ($controls_config['mode'] === 'hidden') {
             return '';
         }
@@ -1533,10 +1606,25 @@ class SVG_Viewer
         $class_attribute = $this->build_class_attribute($classes);
         $initial_zoom_percent = (int) $initial_zoom_percent;
         $has_coords_button = in_array('coords', $buttons, true);
+        $has_slider = !empty($controls_config['has_slider']);
+        $min_zoom_percent = (int) $min_zoom_percent;
+        $max_zoom_percent = (int) $max_zoom_percent;
+        $zoom_step_percent = (int) max(1, $zoom_step_percent);
 
         ob_start();
         ?>
         <div class="<?php echo esc_attr($class_attribute); ?>" data-viewer="<?php echo esc_attr($viewer_id); ?>">
+            <?php if ($has_slider): ?>
+                <div class="zoom-slider-wrapper">
+                    <input type="range" class="zoom-slider" data-viewer="<?php echo esc_attr($viewer_id); ?>"
+                        min="<?php echo esc_attr($min_zoom_percent); ?>" max="<?php echo esc_attr($max_zoom_percent); ?>"
+                        step="<?php echo esc_attr($zoom_step_percent); ?>" value="<?php echo esc_attr($initial_zoom_percent); ?>"
+                        aria-label="<?php esc_attr_e('Zoom level', 'svg-viewer'); ?>"
+                        aria-valuemin="<?php echo esc_attr($min_zoom_percent); ?>"
+                        aria-valuemax="<?php echo esc_attr($max_zoom_percent); ?>"
+                        aria-valuenow="<?php echo esc_attr($initial_zoom_percent); ?>" />
+                </div>
+            <?php endif; ?>
             <?php foreach ($buttons as $button_key):
                 $definition = $button_definitions[$button_key];
                 ?>

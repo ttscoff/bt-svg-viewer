@@ -350,6 +350,16 @@
     const rawValue = (buttonsValue || "both").trim();
     const normalized = rawValue.toLowerCase();
 
+    const tokenizedValue = normalized.replace(/:/g, ",");
+    const tokens = tokenizedValue
+      .split(",")
+      .map((token) => token.trim())
+      .filter(Boolean);
+
+    let hasSlider = tokens.includes("slider");
+    const sliderExplicitZoomIn = tokens.includes("zoom_in");
+    const sliderExplicitZoomOut = tokens.includes("zoom_out");
+
     let mode = "both";
     let styles = [];
     let alignment = "left";
@@ -358,6 +368,11 @@
       buttons.push("coords");
     }
     const defaultButtons = buttons.slice();
+    const defaultButtonsWithoutZoom = defaultButtons.filter(
+      (button) => button !== "zoom_in" && button !== "zoom_out"
+    );
+
+    let processedRawValue = rawValue.replace(/^custom\s*:/i, "custom,");
     let isCustom = false;
 
     if (HIDDEN_OPTIONS.includes(normalized)) {
@@ -368,18 +383,25 @@
       if (showCoords) {
         buttons.push("coords");
       }
+    } else if (normalized === "slider") {
+      hasSlider = true;
+      buttons = defaultButtonsWithoutZoom.slice();
     } else if (STYLE_OPTIONS.includes(normalized.replace("_", "-"))) {
       styles.push(normalized.replace("_", "-"));
     } else if (ALIGNMENT_OPTIONS.includes(normalized)) {
       alignment = normalized;
     } else if (MODE_OPTIONS.includes(normalized)) {
       mode = normalized;
-    } else if (normalized === "custom" || rawValue.indexOf(",") !== -1) {
+    } else if (
+      normalized === "custom" ||
+      processedRawValue.indexOf(",") !== -1
+    ) {
       isCustom = true;
     }
 
     if (isCustom) {
-      let parts = rawValue
+      let parts = processedRawValue
+        .replace(/:/g, ",")
         .split(",")
         .map((part) => part.trim())
         .filter(Boolean);
@@ -387,6 +409,14 @@
       if (parts.length && parts[0].toLowerCase() === "custom") {
         parts.shift();
       }
+
+      parts = parts.filter((part) => {
+        if (part.toLowerCase() === "slider") {
+          hasSlider = true;
+          return false;
+        }
+        return part !== "";
+      });
 
       let customMode = null;
       let customStyles = [];
@@ -458,6 +488,8 @@
 
         if (customButtons.length) {
           buttons = customButtons;
+        } else if (hasSlider) {
+          buttons = defaultButtonsWithoutZoom.slice();
         } else {
           buttons = defaultButtons.slice();
         }
@@ -476,7 +508,7 @@
       if (!showCoords) {
         buttons = buttons.filter((button) => button !== "coords");
       } else if (
-        rawValue.indexOf(",") === -1 &&
+        tokenizedValue.indexOf(",") === -1 &&
         normalized !== "minimal" &&
         normalized !== "custom" &&
         buttons.indexOf("coords") === -1
@@ -485,7 +517,9 @@
       }
 
       if (!buttons.length) {
-        buttons = defaultButtons.slice();
+        buttons = hasSlider
+          ? defaultButtonsWithoutZoom.slice()
+          : defaultButtons.slice();
       }
     } else {
       buttons = [];
@@ -496,12 +530,25 @@
       .filter(Boolean);
     styles = Array.from(new Set(styles));
 
+    if (hasSlider && !sliderExplicitZoomIn) {
+      buttons = buttons.filter((button) => button !== "zoom_in");
+    }
+
+    if (hasSlider && !sliderExplicitZoomOut) {
+      buttons = buttons.filter((button) => button !== "zoom_out");
+    }
+
+    if (hasSlider && !buttons.length) {
+      buttons = defaultButtonsWithoutZoom.slice();
+    }
+
     return {
       position,
       mode,
       styles,
       alignment,
       buttons,
+      hasSlider,
     };
   }
 
@@ -510,7 +557,10 @@
     config,
     viewerId,
     initialZoomPercent,
-    showCoords
+    showCoords,
+    minZoomPercent,
+    maxZoomPercent,
+    zoomStepPercent
   ) {
     const $main = ensureMainWrapper($wrapper, viewerId);
     if (!$main.length) {
@@ -570,6 +620,31 @@
     });
 
     let hasCoords = false;
+
+    if (config.hasSlider) {
+      const sliderWrapper = $("<div/>", { class: "zoom-slider-wrapper" });
+      const parsedMin = parseInt(minZoomPercent, 10);
+      const parsedMax = parseInt(maxZoomPercent, 10);
+      const parsedStep = parseInt(zoomStepPercent, 10);
+      const sliderMin = Number.isFinite(parsedMin) ? parsedMin : 1;
+      const sliderMax = Number.isFinite(parsedMax) ? parsedMax : 800;
+      const sliderStep = Math.max(1, Number.isFinite(parsedStep) ? parsedStep : 1);
+      const $slider = $("<input/>", {
+        type: "range",
+        class: "zoom-slider",
+        "data-viewer": viewerId,
+        min: sliderMin,
+        max: sliderMax,
+        step: sliderStep,
+        value: initialZoomPercent,
+        "aria-label": "Zoom level",
+        "aria-valuemin": sliderMin,
+        "aria-valuemax": sliderMax,
+        "aria-valuenow": initialZoomPercent,
+      });
+      sliderWrapper.append($slider);
+      $controls.append(sliderWrapper);
+    }
 
     buttonsToRender.forEach((buttonKey) => {
       const definition = BUTTON_DEFS[buttonKey];
@@ -741,7 +816,10 @@
       controlsConfig,
       viewerId,
       initialZoomRounded,
-      false
+      false,
+      minZoomPercent,
+      maxZoomPercent,
+      zoomStepPercent
     );
 
     const currentInstances = window.svgViewerInstances || {};

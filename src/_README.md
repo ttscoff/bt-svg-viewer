@@ -67,7 +67,7 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 | `center_x` / `center_y`                           | number                        | –                         | Manual center point in SVG units. Defaults to viewBox center.                                  |
 | `show_coords`                                     | boolean                       | `false`                   | Appends “Copy Center” button for debugging coordinate values.                                  |
 | `controls_position`                               | `top`/`bottom`/`left`/`right` | `top`                     | Placement of the entire control group.                                                         |
-| `controls_buttons`                                | string                        | `both`                    | Comma-delimited mode/align/button list. See table below.                                       |
+| `controls_buttons`                                | string                        | `both`                    | Comma-delimited mode/align/button list. See table below (supports `slider`).                   |
 | `title`                                           | string                        | –                         | Optional heading above the viewer. HTML allowed.                                               |
 | `caption`                                         | string                        | –                         | Optional caption below the viewer. HTML allowed.                                               |
 | `button_fill` / `button_background` / `button_bg` | color string                  | theme default (`#0073aa`) | Button background color. Aliases exist for backwards compatibility (all map to `button_fill`). |
@@ -97,6 +97,10 @@ Alignment keywords (optional, anywhere in list):
 - `aligncenter`
 - `alignright`
 
+Additional keywords:
+
+- `slider` – replaces zoom buttons with a live-updating range input. Combine with `icon`/`text`/`both` for layout. Use `custom:slider,zoom_in,zoom_out` to show both slider and buttons.
+
 Button names (pick any order):
 
 - `zoom_in`, `zoom_out`, `reset`, `center`, `coords` *(coords button only renders if `show_coords="true"`)*
@@ -107,7 +111,7 @@ Example:
 [svg_viewer
   src="/uploads/system-map.svg"
   controls_position="right"
-  controls_buttons="icon,aligncenter,zoom_in,zoom_out,reset,center"
+  controls_buttons="slider,icon,aligncenter,reset,center"
 ]
 ```
 
@@ -192,7 +196,7 @@ Example:
 ```text
 [svg_viewer
   id="42"
-  controls_buttons="icon,alignright,zoom_in,zoom_out"
+  controls_buttons="custom:slider,zoom_in,zoom_out,reset"
 ]
 ```
 
@@ -228,6 +232,7 @@ Wrapper classes added by the plugin:
 - `.controls-align-{alignleft|aligncenter|alignright}`
 - `.svg-viewer-btn`, `.btn-icon`, `.btn-text`
 - `.svg-container`, `.svg-viewport`, `.coord-output`, `.zoom-display`
+- `.zoom-slider-wrapper`, `.zoom-slider`
 
 Button colors are powered by CSS custom properties on the wrapper. Shortcode attributes and preset color pickers set these values, but you can override them manually:
 
@@ -237,6 +242,7 @@ Button colors are powered by CSS custom properties on the wrapper. Shortcode att
   --svg-viewer-button-border: #1d4ed8;
   --svg-viewer-button-hover: #1e40af;
   --svg-viewer-button-text: #ffffff;
+  --svg-viewer-slider-width: 240px;       /* optional: tweak slider width */
 }
 ```
 
@@ -295,6 +301,7 @@ Toggle `show_coords="true"` or inspect `window.svgViewerInstances['viewer-id']` 
 - **Vertical Layout Improvements**: Left/right control stacks get proper spacing and alignment.
 - **Sanitized Inline SVG**: All icons pass through `wp_kses` to keep output safe.
 - **Configurable Button Colors**: Pick fill, border, and foreground colors in presets or via shortcode aliases (`button_bg`, `button_fg`).
+- **Zoom Slider Mode**: Use `controls_buttons="slider,...` or custom combos to replace zoom buttons with a live slider.
 
 Full changelog lives in the repository’s `CHANGELOG.md`.
 
