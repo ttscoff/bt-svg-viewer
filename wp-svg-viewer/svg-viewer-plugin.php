@@ -3,7 +3,7 @@
  * Plugin Name: WP SVG Viewer
  * Plugin URI: https://github.com/ttscoff/wp-svg-viewer/
  * Description: Embed interactive SVG files with zoom and pan controls
- * Version: 1.0.9
+ * Version: 1.0.10
  * Author: Brett Terpstra
  * Author URI: https://brettterpstra.com
  * License: GPL2
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 class SVG_Viewer
 {
     private static $instance = null;
-    private $plugin_version = '1.0.9';
+    private $plugin_version = '1.0.10';
     private $preset_meta_fields = array(
         'svg_viewer_src' => '_svg_src',
         'svg_viewer_height' => '_svg_height',
@@ -68,6 +68,7 @@ class SVG_Viewer
         add_action('manage_svg_viewer_preset_posts_custom_column', array($this, 'render_shortcode_column'), 10, 2);
         add_action('current_screen', array($this, 'maybe_setup_presets_screen'));
         add_action('admin_post_svg_viewer_save_defaults', array($this, 'handle_save_default_options'));
+        add_filter('plugin_action_links_' . plugin_basename(__FILE__), array($this, 'add_plugin_settings_link'));
     }
 
     /**
@@ -1912,6 +1913,25 @@ class SVG_Viewer
         );
 
         return $allowed;
+    }
+
+    /**
+     * Add a Settings link to the plugin actions list.
+     *
+     * @param string[] $links Existing action links.
+     * @return string[]
+     */
+    public function add_plugin_settings_link($links)
+    {
+        $settings_link = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url(admin_url('edit.php?post_type=svg_viewer_preset')),
+            esc_html__('Settings', 'wp-svg-viewer')
+        );
+
+        array_unshift($links, $settings_link);
+
+        return $links;
     }
 
     /**
