@@ -2,3 +2,4 @@
 .vscode
 commit_message.txt
 vendor
+.DS_Store
