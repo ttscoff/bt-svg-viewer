@@ -102,6 +102,8 @@ class SVGViewer {
           )
         )
       : [];
+    this.cleanupHandlers = [];
+    this.boundKeydownHandler = null;
 
     this.init();
   }
@@ -132,30 +134,54 @@ class SVGViewer {
     this.loadSVG();
   }
 
+  registerEvent(target, type, handler, options) {
+    if (!target || typeof target.addEventListener !== "function") {
+      return;
+    }
+    const listenerOptions = typeof options === "undefined" ? false : options;
+    target.addEventListener(type, handler, listenerOptions);
+    if (!Array.isArray(this.cleanupHandlers)) {
+      this.cleanupHandlers = [];
+    }
+    this.cleanupHandlers.push(() => {
+      if (!target || typeof target.removeEventListener !== "function") {
+        return;
+      }
+      try {
+        target.removeEventListener(type, handler, listenerOptions);
+      } catch (err) {
+        // Ignore listener removal errors
+      }
+    });
+  }
+
   setupEventListeners() {
-    // Button clicks
     if (this.zoomInButtons && this.zoomInButtons.length) {
       this.zoomInButtons.forEach((btn) => {
-        btn.addEventListener("click", () => this.zoomIn());
+        const handler = () => this.zoomIn();
+        this.registerEvent(btn, "click", handler);
       });
     }
 
     if (this.zoomOutButtons && this.zoomOutButtons.length) {
       this.zoomOutButtons.forEach((btn) => {
-        btn.addEventListener("click", () => this.zoomOut());
+        const handler = () => this.zoomOut();
+        this.registerEvent(btn, "click", handler);
       });
     }
 
     this.wrapper
       .querySelectorAll('[data-viewer="' + this.viewerId + '"].reset-zoom-btn')
       .forEach((btn) => {
-        btn.addEventListener("click", () => this.resetZoom());
+        const handler = () => this.resetZoom();
+        this.registerEvent(btn, "click", handler);
       });
 
     this.wrapper
       .querySelectorAll('[data-viewer="' + this.viewerId + '"].center-view-btn')
       .forEach((btn) => {
-        btn.addEventListener("click", () => this.centerView());
+        const handler = () => this.centerView();
+        this.registerEvent(btn, "click", handler);
       });
 
     if (this.showCoordinates) {
@@ -164,24 +190,24 @@ class SVGViewer {
           '[data-viewer="' + this.viewerId + '"].coord-copy-btn'
         )
         .forEach((btn) => {
-          btn.addEventListener("click", () => this.copyCenterCoordinates());
+          const handler = () => this.copyCenterCoordinates();
+          this.registerEvent(btn, "click", handler);
         });
     }
 
-    // Keyboard shortcuts
-    document.addEventListener("keydown", (e) => this.handleKeyboard(e));
+    this.boundKeydownHandler =
+      this.boundKeydownHandler || ((e) => this.handleKeyboard(e));
+    this.registerEvent(document, "keydown", this.boundKeydownHandler);
 
-    // Mouse wheel / scroll zoom
     if (this.container) {
-      this.boundWheelHandler = this.boundWheelHandler
-        ? this.boundWheelHandler
-        : (event) => this.handleMouseWheel(event);
-      this.container.addEventListener("wheel", this.boundWheelHandler, {
-        passive: false,
-      });
+      this.boundWheelHandler =
+        this.boundWheelHandler || ((event) => this.handleMouseWheel(event));
+      const wheelOptions = { passive: false };
+      this.registerEvent(this.container, "wheel", this.boundWheelHandler, wheelOptions);
       if (this.zoomMode === "click") {
-        this.boundClickHandler = (event) => this.handleContainerClick(event);
-        this.container.addEventListener("click", this.boundClickHandler);
+        this.boundClickHandler =
+          this.boundClickHandler || ((event) => this.handleContainerClick(event));
+        this.registerEvent(this.container, "click", this.boundClickHandler);
       }
     }
 
@@ -191,13 +217,14 @@ class SVGViewer {
 
     if (this.zoomSliderEls && this.zoomSliderEls.length) {
       this.zoomSliderEls.forEach((slider) => {
-        slider.addEventListener("input", (event) => {
+        const handler = (event) => {
           const percent = parseFloat(event.target.value);
           if (!Number.isFinite(percent)) {
             return;
           }
           this.setZoom(percent / 100);
-        });
+        };
+        this.registerEvent(slider, "input", handler);
       });
     }
   }
@@ -922,23 +949,21 @@ class SVGViewer {
     this.boundTouchEnd =
       this.boundTouchEnd || ((event) => this.handleTouchEnd(event));
 
-    this.container.addEventListener("pointerdown", this.boundPointerDown);
-    window.addEventListener("pointermove", this.boundPointerMove);
-    window.addEventListener("pointerup", this.boundPointerUp);
-    window.addEventListener("pointercancel", this.boundPointerUp);
+    this.registerEvent(this.container, "pointerdown", this.boundPointerDown);
+    this.registerEvent(window, "pointermove", this.boundPointerMove);
+    this.registerEvent(window, "pointerup", this.boundPointerUp);
+    this.registerEvent(window, "pointercancel", this.boundPointerUp);
 
-    this.container.addEventListener("mousedown", this.boundMouseDown);
-    window.addEventListener("mousemove", this.boundMouseMove);
-    window.addEventListener("mouseup", this.boundMouseUp);
+    this.registerEvent(this.container, "mousedown", this.boundMouseDown);
+    this.registerEvent(window, "mousemove", this.boundMouseMove);
+    this.registerEvent(window, "mouseup", this.boundMouseUp);
 
-    this.container.addEventListener("touchstart", this.boundTouchStart, {
-      passive: false,
-    });
-    window.addEventListener("touchmove", this.boundTouchMove, {
-      passive: false,
-    });
-    window.addEventListener("touchend", this.boundTouchEnd);
-    window.addEventListener("touchcancel", this.boundTouchEnd);
+    const touchStartOptions = { passive: false };
+    const touchMoveOptions = { passive: false };
+    this.registerEvent(this.container, "touchstart", this.boundTouchStart, touchStartOptions);
+    this.registerEvent(window, "touchmove", this.boundTouchMove, touchMoveOptions);
+    this.registerEvent(window, "touchend", this.boundTouchEnd);
+    this.registerEvent(window, "touchcancel", this.boundTouchEnd);
 
     if (this.container.style) {
       this.container.style.touchAction = this.pointerEventsSupported
@@ -1465,6 +1490,48 @@ class SVGViewer {
     if (shouldRecenter && this.container && this.baseDimensions) {
       this.centerView();
     }
+  }
+
+  destroy() {
+    this.endDrag();
+    if (Array.isArray(this.cleanupHandlers)) {
+      while (this.cleanupHandlers.length) {
+        const cleanup = this.cleanupHandlers.pop();
+        try {
+          cleanup();
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+      this.cleanupHandlers = [];
+    }
+    if (this.container) {
+      if (this.container.classList) {
+        this.container.classList.remove("is-dragging");
+      }
+      if (this.container.style) {
+        this.container.style.touchAction = "";
+      }
+    }
+    if (
+      typeof window !== "undefined" &&
+      this.wheelAnimationFrame &&
+      typeof window.cancelAnimationFrame === "function"
+    ) {
+      window.cancelAnimationFrame(this.wheelAnimationFrame);
+      this.wheelAnimationFrame = null;
+    }
+    if (
+      typeof window !== "undefined" &&
+      this.zoomAnimationFrame &&
+      typeof window.cancelAnimationFrame === "function"
+    ) {
+      window.cancelAnimationFrame(this.zoomAnimationFrame);
+      this.zoomAnimationFrame = null;
+    }
+    this.wheelDeltaBuffer = 0;
+    this.wheelFocusPoint = null;
+    this.dragListenersAttached = false;
   }
 
   computeZoomTarget(direction) {

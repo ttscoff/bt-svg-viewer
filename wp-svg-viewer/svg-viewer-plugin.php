@@ -2457,10 +2457,10 @@ class SVG_Viewer
         }
 
         $pan_mode_input = isset($_POST['svg_viewer_pan_mode']) ? wp_unslash($_POST['svg_viewer_pan_mode']) : '';
-        $pan_mode_value = $this->normalize_pan_mode($pan_mode_input);
-        if ($pan_mode_value === 'scroll') {
+        if ($pan_mode_input === '') {
             delete_post_meta($post_id, '_svg_pan_mode');
         } else {
+            $pan_mode_value = $this->normalize_pan_mode($pan_mode_input);
             update_post_meta($post_id, '_svg_pan_mode', $pan_mode_value);
         }
 
