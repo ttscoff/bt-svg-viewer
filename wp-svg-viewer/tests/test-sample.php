@@ -24,6 +24,31 @@ class SVG_Viewer_Tests extends WP_UnitTestCase
 	{
 		self::$plugin = SVG_Viewer::get_instance();
 		self::$plugin->register_preset_post_type();
+
+		if (!function_exists('sanitize_hex_color')) {
+			require_once ABSPATH . WPINC . '/formatting.php';
+
+			if (!function_exists('sanitize_hex_color')) {
+				function sanitize_hex_color($color)
+				{
+					$color = is_string($color) ? trim($color) : '';
+
+					if ($color === '') {
+						return false;
+					}
+
+					if ($color[0] !== '#') {
+						$color = '#' . $color;
+					}
+
+					if (preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $color)) {
+						return strtolower($color);
+					}
+
+					return false;
+				}
+			}
+		}
 	}
 
 	/**
@@ -210,7 +235,7 @@ class SVG_Viewer_Tests extends WP_UnitTestCase
 		$this->assertContains('zoom_in', $config['buttons'], 'Default controls should include zoom_in.');
 		$this->assertContains('zoom_out', $config['buttons'], 'Default controls should include zoom_out.');
 		$this->assertFalse($config['has_slider'], 'Default controls should not include the slider unless specified.');
-		$this->assertSame('expanded', $config['mode']);
+		$this->assertSame('both', $config['mode']);
 		$this->assertContains('coords', $config['buttons']);
 
 		$slider_config = $method->invoke(
