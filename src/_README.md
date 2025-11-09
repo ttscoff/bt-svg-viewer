@@ -55,25 +55,30 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 
 ## Shortcode Reference
 
-| Attribute                                         | Type                          | Default                   | Description                                                                                    |
-| ------------------------------------------------- | ----------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------- |
-| `src`                                             | string (required)             | –                         | SVG URL. Supports absolute URLs, `/absolute/path.svg`, or relative to the uploads directory.   |
-| `height`                                          | string                        | `600px`                   | CSS height of the viewer. Accepts px, vh, %, etc.                                              |
-| `class`                                           | string                        | –                         | Additional class appended to the wrapper.                                                      |
-| `zoom`                                            | number                        | `100`                     | Initial zoom percentage.                                                                       |
-| `min_zoom`                                        | number                        | `25`                      | Minimum zoom percentage allowed.                                                               |
-| `max_zoom`                                        | number                        | `800`                     | Maximum zoom percentage allowed.                                                               |
-| `zoom_step`                                       | number                        | `10`                      | Increment used by buttons/keyboard shortcuts.                                                  |
-| `center_x` / `center_y`                           | number                        | –                         | Manual center point in SVG units. Defaults to viewBox center.                                  |
-| `show_coords`                                     | boolean                       | `false`                   | Appends “Copy Center” button for debugging coordinate values.                                  |
-| `controls_position`                               | `top`/`bottom`/`left`/`right` | `top`                     | Placement of the entire control group.                                                         |
-| `controls_buttons`                                | string                        | `both`                    | Comma-delimited mode/align/button list. See table below (supports `slider`).                   |
-| `title`                                           | string                        | –                         | Optional heading above the viewer. HTML allowed.                                               |
-| `caption`                                         | string                        | –                         | Optional caption below the viewer. HTML allowed.                                               |
-| `button_fill` / `button_background` / `button_bg` | color string                  | theme default (`#0073aa`) | Button background color. Aliases exist for backwards compatibility (all map to `button_fill`). |
-| `button_border`                                   | color string                  | matches fill              | Outline color for buttons. Blank inherits the fill color.                                      |
-| `button_foreground` / `button_fg`                 | color string                  | `#ffffff`                 | Text and icon color for buttons. Blank uses the default.                                       |
-| `id`                                              | number                        | –                         | Reference a saved preset (admin). Inline attributes override preset values.                    |
+| Attribute                                          | Type                                | Default                   | Description                                                                                                                                      |
+| -------------------------------------------------- | ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src`                                              | string (required)                   | –                         | SVG URL. Supports absolute URLs, `/absolute/path.svg`, or relative to the uploads directory.                                                     |
+| `height`                                           | string                              | `600px`                   | CSS height of the viewer. Accepts px, vh, %, etc.                                                                                                |
+| `class`                                            | string                              | –                         | Additional class appended to the wrapper.                                                                                                        |
+| `zoom`                                             | number                              | `100`                     | Initial zoom percentage.                                                                                                                         |
+| `min_zoom`                                         | number                              | `25`                      | Minimum zoom percentage allowed.                                                                                                                 |
+| `max_zoom`                                         | number                              | `800`                     | Maximum zoom percentage allowed.                                                                                                                 |
+| `zoom_step`                                        | number                              | `10`                      | Increment used by buttons/keyboard shortcuts.                                                                                                    |
+| `initial_zoom`                                     | number                              | –                         | Alias captured when presets save the preview state. Overrides `zoom` if present.                                                                 |
+| `pan` / `pan_mode`                                 | `scroll` or `drag`                  | `scroll`                  | Toggle between scroll-wheel panning and click-drag panning. Drag is enforced when zoom modes require it.                                         |
+| `zoom_mode` / `zoom_behavior` / `zoom_interaction` | `super_scroll` / `scroll` / `click` | `super_scroll`            | Choose how wheel and modifier gestures zoom: Cmd/Ctrl + wheel (`super_scroll`), every wheel (`scroll`), or Cmd/Ctrl-click & Alt-click (`click`). |
+| `center_x` / `center_y`                            | number                              | –                         | Manual center point in SVG units. Defaults to viewBox center.                                                                                    |
+| `show_coords`                                      | boolean                             | `false`                   | Appends “Copy Center” button for debugging coordinate values.                                                                                    |
+| `controls_position`                                | `top`/`bottom`/`left`/`right`       | `top`                     | Placement of the entire control group.                                                                                                           |
+| `controls_buttons`                                 | string                              | `both`                    | Comma-delimited mode/align/button list. See table below (supports `slider`).                                                                     |
+| `title`                                            | string                              | –                         | Optional heading above the viewer. HTML allowed.                                                                                                 |
+| `caption`                                          | string                              | –                         | Optional caption below the viewer. HTML allowed.                                                                                                 |
+| `button_fill` / `button_background` / `button_bg`  | color string                        | theme default (`#0073aa`) | Button background color. Aliases exist for backwards compatibility (all map to `button_fill`).                                                   |
+| `button_border`                                    | color string                        | matches fill              | Outline color for buttons. Blank inherits the fill color.                                                                                        |
+| `button_foreground` / `button_fg`                  | color string                        | `#ffffff`                 | Text and icon color for buttons. Blank uses the default.                                                                                         |
+| `id`                                               | number                              | –                         | Reference a saved preset (admin). Inline attributes override preset values.                                                                      |
+
+> Changing the interaction defaults automatically inserts a helper caption (e.g. “Cmd/Ctrl-click to zoom in…”) above your custom caption so visitors know the gesture.
 
 ### `controls_buttons` Cheat Sheet
 
@@ -146,6 +151,11 @@ Example:
 
 - At the top of the preset editor and in the presets list table you’ll find a copy-ready snippet in the form of `[svg_viewer id="123"]`.
 - Click **Copy** to put the shortcode on the clipboard without selecting manually.
+
+### Defaults Tab
+
+- Visit **SVG Viewer → Presets → Defaults** to seed the fields used when creating a new preset.
+- The panel now includes **Enable asset cache busting for debugging**, which appends a time-based suffix to scripts and styles. It is automatically active on hosts that start with `dev.` or `wptest.` and can be toggled manually when you need to defeat browser caching.
 
 ---
 
@@ -289,19 +299,17 @@ Example overrides:
 
 ### Debugging
 
-Toggle `show_coords="true"` or inspect `window.svgViewerInstances['viewer-id']` to troubleshoot zoom, center, or scroll behaviour.
+- Toggle `show_coords="true"` or inspect `window.svgViewerInstances['viewer-id']` to troubleshoot zoom, center, or scroll behaviour.
+- Use the Defaults tab’s **Enable asset cache busting for debugging** switch if your browser clings to stale copies of the viewer script or styles.
 
 ---
 
-## Changelog Highlights (1.0.1)
+## Changelog Highlights (1.1.0)
 
-- **Visual Preset Editor**: Upload SVGs, configure zoom/center, style controls, and copy shortcodes without touching code.
-- **Font Awesome Icons**: Control buttons use embeddable SVG glyphs for crisp rendering.
-- **Alignment Keywords**: `alignleft`, `aligncenter`, `alignright` control button placement independently from bar position.
-- **Vertical Layout Improvements**: Left/right control stacks get proper spacing and alignment.
-- **Sanitized Inline SVG**: All icons pass through `wp_kses` to keep output safe.
-- **Configurable Button Colors**: Pick fill, border, and foreground colors in presets or via shortcode aliases (`button_bg`, `button_fg`).
-- **Zoom Slider Mode**: Use `controls_buttons="slider,...` or custom combos to replace zoom buttons with a live slider.
+- **Pan/Zoom Interaction Modes**: Shortcode and presets can now request `pan_mode="drag"` or `zoom_mode="scroll"` / `click"`, with the front end auto-explaining gesture hints to visitors.
+- **Smooth Cursor-Focused Zoom**: Wheel, slider, and modifier-click zoom animate between stops and keep the point under the pointer locked in place.
+- **Responsive Drag Panning**: Dragging now tracks 1:1 with the pointer and ignores stray wheel events so diagonal swipes stay fluid.
+- **Dev-Friendly Cache Busting**: The Defaults tab adds an “Enable asset cache busting” switch (also auto-enabled for `dev.*` and `wptest.*` hosts) to force fresh JS/CSS while testing.
 
 Full changelog lives in the repository’s `CHANGELOG.md`.
 

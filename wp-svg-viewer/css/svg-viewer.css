@@ -55,6 +55,13 @@
   padding: 12px 16px;
 }
 
+.svg-viewer-interaction-caption {
+  font-weight: 400;
+  font-size: 0.9em;
+  color: #555;
+  background-color: #fafafa;
+}
+
 .svg-viewer-title {
   border-bottom: 1px solid #ddd;
 }
@@ -331,6 +338,20 @@
   position: relative;
   display: block;
   scroll-behavior: smooth;
+}
+
+.svg-viewer-wrapper.pan-mode-drag .svg-container {
+  cursor: grab;
+  touch-action: pan-x pan-y;
+}
+
+.svg-viewer-wrapper.pan-mode-drag .svg-container.is-dragging {
+  cursor: grabbing;
+}
+
+.svg-viewer-wrapper.pan-mode-drag .svg-container.is-dragging,
+.svg-viewer-wrapper.pan-mode-drag .svg-container.is-dragging * {
+  user-select: none;
 }
 
 .svg-viewer-caption {

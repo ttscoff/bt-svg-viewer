@@ -22,6 +22,11 @@ class SVGViewer {
         ? { x: parsedCenterX, y: parsedCenterY }
         : null;
     this.showCoordinates = Boolean(options.showCoordinates);
+    this.panMode = SVGViewer.normalizePanMode(options.panMode);
+    this.zoomMode = SVGViewer.normalizeZoomMode(options.zoomMode);
+    if (this.zoomMode === "scroll" && this.panMode === "scroll") {
+      this.panMode = "drag";
+    }
 
     // State
     this.currentZoom = this.initialZoom;
@@ -31,6 +36,36 @@ class SVGViewer {
     this.baseOrigin = { x: 0, y: 0 };
     this.baseCssDimensions = null;
     this.unitsPerCss = { x: 1, y: 1 };
+    this.dragState = {
+      isActive: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      scrollLeft: 0,
+      scrollTop: 0,
+      lastClientX: 0,
+      lastClientY: 0,
+      inputType: null,
+      prevScrollBehavior: "",
+    };
+    this.boundPointerDown = null;
+    this.boundPointerMove = null;
+    this.boundPointerUp = null;
+    this.boundClickHandler = null;
+    this.boundWheelHandler = null;
+    this.dragListenersAttached = false;
+    this.wheelDeltaBuffer = 0;
+    this.wheelAnimationFrame = null;
+    this.wheelFocusPoint = null;
+    this.zoomAnimationFrame = null;
+    this.pointerEventsSupported =
+      typeof window !== "undefined" && window.PointerEvent;
+    this.boundMouseDown = null;
+    this.boundMouseMove = null;
+    this.boundMouseUp = null;
+    this.boundTouchStart = null;
+    this.boundTouchMove = null;
+    this.boundTouchEnd = null;
 
     // DOM Elements
     this.wrapper = document.getElementById(this.viewerId);
@@ -55,6 +90,25 @@ class SVGViewer {
       : [];
 
     this.init();
+  }
+
+  static normalizePanMode(value) {
+    const raw =
+      typeof value === "string" ? value.trim().toLowerCase() : String("");
+    return raw === "drag" ? "drag" : "scroll";
+  }
+
+  static normalizeZoomMode(value) {
+    const raw =
+      typeof value === "string" ? value.trim().toLowerCase() : String("");
+    const normalized = raw.replace(/[\s-]+/g, "_");
+    if (normalized === "click") {
+      return "click";
+    }
+    if (normalized === "scroll") {
+      return "scroll";
+    }
+    return "super_scroll";
   }
 
   init() {
@@ -103,8 +157,23 @@ class SVGViewer {
     // Keyboard shortcuts
     document.addEventListener("keydown", (e) => this.handleKeyboard(e));
 
-    // Mouse wheel zoom
-    this.container.addEventListener("wheel", (e) => this.handleMouseWheel(e));
+    // Mouse wheel / scroll zoom
+    if (this.container) {
+      this.boundWheelHandler = this.boundWheelHandler
+        ? this.boundWheelHandler
+        : (event) => this.handleMouseWheel(event);
+      this.container.addEventListener("wheel", this.boundWheelHandler, {
+        passive: false,
+      });
+      if (this.zoomMode === "click") {
+        this.boundClickHandler = (event) => this.handleContainerClick(event);
+        this.container.addEventListener("click", this.boundClickHandler);
+      }
+    }
+
+    if (this.panMode === "drag") {
+      this.enableDragPan();
+    }
 
     if (this.zoomSliderEls && this.zoomSliderEls.length) {
       this.zoomSliderEls.forEach((slider) => {
@@ -151,6 +220,16 @@ class SVGViewer {
   }
 
   setZoom(newZoom, options = {}) {
+    if (options.animate && !options.__animationStep) {
+      this.startZoomAnimation(newZoom, options);
+      return;
+    }
+
+    if (this.zoomAnimationFrame && !options.__animationStep) {
+      window.cancelAnimationFrame(this.zoomAnimationFrame);
+      this.zoomAnimationFrame = null;
+    }
+
     if (!this.container || !this.viewport) {
       this.currentZoom = Math.max(
         this.MIN_ZOOM,
@@ -178,27 +257,14 @@ class SVGViewer {
       this.MIN_ZOOM = Math.min(1, containerDiag / svgDiag);
     }
 
-    let focusBaseX;
-    let focusBaseY;
-
-    if (
-      typeof options.focusX === "number" &&
-      typeof options.focusY === "number"
-    ) {
-      focusBaseX = options.focusX;
-      focusBaseY = options.focusY;
-    } else {
-      const visibleCenterX =
-        this.container.scrollLeft + this.container.clientWidth / 2;
-      const visibleCenterY =
-        this.container.scrollTop + this.container.clientHeight / 2;
-
-      const cssBaseX = visibleCenterX / prevZoom;
-      const cssBaseY = visibleCenterY / prevZoom;
-
-      focusBaseX = this.baseOrigin.x + cssBaseX * (this.unitsPerCss.x || 1);
-      focusBaseY = this.baseOrigin.y + cssBaseY * (this.unitsPerCss.y || 1);
-    }
+    const focusData =
+      options.__focusData && typeof options.__focusData === "object"
+        ? options.__focusData
+        : this._computeFocusData(prevZoom, options);
+    const focusBaseX = focusData.focusBaseX;
+    const focusBaseY = focusData.focusBaseY;
+    const focusOffsetX = focusData.focusOffsetX;
+    const focusOffsetY = focusData.focusOffsetY;
 
     this.currentZoom = Math.max(
       this.MIN_ZOOM,
@@ -212,21 +278,32 @@ class SVGViewer {
     const newScrollHeight = this.container.scrollHeight;
 
     if (!options.center && newScrollWidth && newScrollHeight) {
-      const cssCenterXAfter =
+      const focusCssXAfter =
         ((focusBaseX - this.baseOrigin.x) / (this.unitsPerCss.x || 1)) *
         this.currentZoom;
-      const cssCenterYAfter =
+      const focusCssYAfter =
         ((focusBaseY - this.baseOrigin.y) / (this.unitsPerCss.y || 1)) *
         this.currentZoom;
 
-      const targetLeft = cssCenterXAfter - this.container.clientWidth / 2;
-      const targetTop = cssCenterYAfter - this.container.clientHeight / 2;
+      let targetLeft;
+      if (typeof focusOffsetX === "number") {
+        targetLeft = focusCssXAfter - focusOffsetX;
+      } else {
+        targetLeft = focusCssXAfter - this.container.clientWidth / 2;
+      }
+
+      let targetTop;
+      if (typeof focusOffsetY === "number") {
+        targetTop = focusCssYAfter - focusOffsetY;
+      } else {
+        targetTop = focusCssYAfter - this.container.clientHeight / 2;
+      }
 
       this._debugLastZoom = {
         focusBaseX,
         focusBaseY,
-        cssCenterXAfter,
-        cssCenterYAfter,
+        focusCssXAfter,
+        focusCssYAfter,
         targetLeft,
         targetTop,
         scrollWidth: newScrollWidth,
@@ -257,6 +334,49 @@ class SVGViewer {
     if (this.container) {
       this.container.style.transform = prevTransform || "";
     }
+  }
+
+  _computeFocusData(prevZoom, options = {}) {
+    const data = {
+      focusBaseX: 0,
+      focusBaseY: 0,
+      focusOffsetX: null,
+      focusOffsetY: null,
+    };
+
+    if (!this.container) {
+      return data;
+    }
+
+    if (
+      typeof options.focusX === "number" &&
+      typeof options.focusY === "number"
+    ) {
+      data.focusBaseX = options.focusX;
+      data.focusBaseY = options.focusY;
+    } else {
+      const visibleCenterX =
+        this.container.scrollLeft + this.container.clientWidth / 2;
+      const visibleCenterY =
+        this.container.scrollTop + this.container.clientHeight / 2;
+
+      const cssBaseX = visibleCenterX / prevZoom;
+      const cssBaseY = visibleCenterY / prevZoom;
+
+      data.focusBaseX =
+        this.baseOrigin.x + cssBaseX * (this.unitsPerCss.x || 1);
+      data.focusBaseY =
+        this.baseOrigin.y + cssBaseY * (this.unitsPerCss.y || 1);
+    }
+
+    if (typeof options.focusOffsetX === "number") {
+      data.focusOffsetX = options.focusOffsetX;
+    }
+    if (typeof options.focusOffsetY === "number") {
+      data.focusOffsetY = options.focusOffsetY;
+    }
+
+    return data;
   }
 
   updateViewport({ immediate = false } = {}) {
@@ -292,15 +412,81 @@ class SVGViewer {
   }
 
   zoomIn() {
-    this.setZoom(this.currentZoom + this.ZOOM_STEP);
+    this.setZoom(this.currentZoom + this.ZOOM_STEP, { animate: true });
   }
 
   zoomOut() {
-    this.setZoom(this.currentZoom - this.ZOOM_STEP);
+    this.setZoom(this.currentZoom - this.ZOOM_STEP, { animate: true });
   }
 
   resetZoom() {
-    this.setZoom(this.initialZoom || 1, { center: true });
+    this.setZoom(this.initialZoom || 1, { center: true, animate: true });
+  }
+
+  startZoomAnimation(targetZoom, options = {}) {
+    if (!this.container || !this.viewport) {
+      this.setZoom(targetZoom, { ...options, animate: false });
+      return;
+    }
+
+    if (this.zoomAnimationFrame) {
+      window.cancelAnimationFrame(this.zoomAnimationFrame);
+      this.zoomAnimationFrame = null;
+    }
+
+    const startZoom = this.currentZoom || 1;
+    const focusData = this._computeFocusData(startZoom, options);
+    const duration =
+      typeof options.zoomAnimationDuration === "number"
+        ? Math.max(0, options.zoomAnimationDuration)
+        : 160;
+    const easing =
+      typeof options.zoomAnimationEasing === "function"
+        ? options.zoomAnimationEasing
+        : this._easeOutCubic;
+
+    const frameOptions = {
+      ...options,
+      animate: false,
+      __animationStep: true,
+      __focusData: focusData,
+    };
+    delete frameOptions.center;
+
+    const startTimeRef = { value: null };
+
+    const animateFrame = (timestamp) => {
+      if (startTimeRef.value === null) {
+        startTimeRef.value = timestamp;
+      }
+      const elapsed = timestamp - startTimeRef.value;
+      const progress =
+        duration === 0 ? 1 : Math.min(elapsed / duration, 1);
+      const easedProgress = easing(progress);
+      const intermediateZoom =
+        startZoom + (targetZoom - startZoom) * easedProgress;
+
+      this.setZoom(intermediateZoom, frameOptions);
+
+      if (progress < 1) {
+        this.zoomAnimationFrame =
+          window.requestAnimationFrame(animateFrame);
+      } else {
+        this.zoomAnimationFrame = null;
+        this.setZoom(targetZoom, {
+          ...options,
+          animate: false,
+          __animationStep: true,
+          __focusData: focusData,
+        });
+      }
+    };
+
+    this.zoomAnimationFrame = window.requestAnimationFrame(animateFrame);
+  }
+
+  _easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
   }
 
   centerView(input = {}) {
@@ -431,30 +617,674 @@ class SVGViewer {
     }
   }
 
-  handleMouseWheel(e) {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const direction = e.deltaY > 0 ? -1 : 1;
-      if (!this.container) {
-        this.setZoom(this.currentZoom + direction * this.ZOOM_STEP);
+  handleMouseWheel(event) {
+    if (!this.container) {
+      return;
+    }
+
+    if (this.dragState && this.dragState.isActive && this.panMode === "drag") {
+      return;
+    }
+
+    const initialScrollLeft = this.container.scrollLeft;
+    const hadHorizontalDelta =
+      typeof event.deltaX === "number" && event.deltaX !== 0;
+    const absDeltaX = Math.abs(event.deltaX || 0);
+    const absDeltaY = Math.abs(event.deltaY || 0);
+    const verticalDominant =
+      absDeltaX === 0 ? absDeltaY > 0 : absDeltaY >= absDeltaX * 1.5;
+    const meetsThreshold = absDeltaY >= 4;
+    const shouldZoom = verticalDominant && meetsThreshold;
+    const panRequiresDrag = this.panMode === "drag";
+
+    if (this.zoomMode === "scroll") {
+      if (!shouldZoom) {
+        if (panRequiresDrag) {
+          event.preventDefault();
+          if (hadHorizontalDelta) {
+            this.container.scrollLeft = initialScrollLeft;
+          }
+        }
         return;
       }
+      event.preventDefault();
+      this.performWheelZoom(event);
+      if (hadHorizontalDelta) {
+        this.container.scrollLeft = initialScrollLeft;
+      }
+      return;
+    }
 
-      const rect = this.container.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left + this.container.scrollLeft;
-      const cursorY = e.clientY - rect.top + this.container.scrollTop;
+    const hasModifier = event.ctrlKey || event.metaKey;
 
-      const focusBaseX =
-        this.baseOrigin.x +
-        (cursorX / this.currentZoom) * (this.unitsPerCss.x || 1);
-      const focusBaseY =
-        this.baseOrigin.y +
-        (cursorY / this.currentZoom) * (this.unitsPerCss.y || 1);
+    if (this.zoomMode === "super_scroll") {
+      if (!hasModifier) {
+        if (panRequiresDrag) {
+          event.preventDefault();
+          if (hadHorizontalDelta) {
+            this.container.scrollLeft = initialScrollLeft;
+          }
+        }
+        return;
+      }
+      if (!shouldZoom) {
+        if (panRequiresDrag) {
+          event.preventDefault();
+          if (hadHorizontalDelta) {
+            this.container.scrollLeft = initialScrollLeft;
+          }
+        }
+        return;
+      }
+      event.preventDefault();
+      this.performWheelZoom(event);
+      if (hadHorizontalDelta) {
+        this.container.scrollLeft = initialScrollLeft;
+      }
+      return;
+    }
 
-      this.setZoom(this.currentZoom + direction * this.ZOOM_STEP, {
-        focusX: focusBaseX,
-        focusY: focusBaseY,
-      });
+    if (this.zoomMode === "click") {
+      if (!hasModifier) {
+        if (panRequiresDrag) {
+          event.preventDefault();
+          if (hadHorizontalDelta) {
+            this.container.scrollLeft = initialScrollLeft;
+          }
+        }
+        return;
+      }
+      if (!shouldZoom) {
+        if (panRequiresDrag) {
+          event.preventDefault();
+          if (hadHorizontalDelta) {
+            this.container.scrollLeft = initialScrollLeft;
+          }
+        }
+        return;
+      }
+      event.preventDefault();
+      this.performWheelZoom(event);
+      if (hadHorizontalDelta) {
+        this.container.scrollLeft = initialScrollLeft;
+      }
+    }
+  }
+
+  getFocusPointFromEvent(event) {
+    if (!this.container) {
+      return null;
+    }
+
+    let clientX = null;
+    let clientY = null;
+
+    if (typeof event.clientX === "number" && typeof event.clientY === "number") {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    } else if (event.touches && event.touches.length) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    }
+
+    if (clientX === null || clientY === null) {
+      return null;
+    }
+
+    const rect = this.container.getBoundingClientRect();
+    const cursorX = clientX - rect.left + this.container.scrollLeft;
+    const cursorY = clientY - rect.top + this.container.scrollTop;
+
+    const zoom = this.currentZoom || 1;
+    const unitsX = this.unitsPerCss.x || 1;
+    const unitsY = this.unitsPerCss.y || 1;
+
+    const baseX = this.baseOrigin.x + (cursorX / zoom) * unitsX;
+    const baseY = this.baseOrigin.y + (cursorY / zoom) * unitsY;
+    const pointerOffsetX =
+      typeof clientX === "number" && Number.isFinite(clientX)
+        ? clientX - rect.left
+        : null;
+    const pointerOffsetY =
+      typeof clientY === "number" && Number.isFinite(clientY)
+        ? clientY - rect.top
+        : null;
+
+    return {
+      baseX,
+      baseY,
+      pointerOffsetX,
+      pointerOffsetY,
+    };
+  }
+
+  performWheelZoom(event) {
+    const normalizedDelta = this.normalizeWheelDelta(event);
+    if (!normalizedDelta) {
+      return;
+    }
+
+    const focusPoint = this.getFocusPointFromEvent(event);
+    this.enqueueWheelDelta(normalizedDelta, focusPoint);
+  }
+
+  normalizeWheelDelta(event) {
+    if (!event) {
+      return 0;
+    }
+
+    let delta = Number(event.deltaY);
+    if (!Number.isFinite(delta)) {
+      return 0;
+    }
+
+    switch (event.deltaMode) {
+      case 1: // lines
+        delta *= 16;
+        break;
+      case 2: // pages
+        delta *= this.getWheelPageDistance();
+        break;
+      default:
+        break;
+    }
+
+    return delta;
+  }
+
+  enqueueWheelDelta(delta, focusPoint) {
+    if (!Number.isFinite(delta) || delta === 0) {
+      return;
+    }
+
+    this.wheelDeltaBuffer += delta;
+
+    if (focusPoint) {
+      this.wheelFocusPoint = focusPoint;
+    }
+
+    if (this.wheelAnimationFrame) {
+      return;
+    }
+
+    this.wheelAnimationFrame = window.requestAnimationFrame(() =>
+      this.flushWheelDelta()
+    );
+  }
+
+  flushWheelDelta() {
+    this.wheelAnimationFrame = null;
+    const delta = this.wheelDeltaBuffer;
+    this.wheelDeltaBuffer = 0;
+
+    if (!Number.isFinite(delta) || delta === 0) {
+      this.wheelFocusPoint = null;
+      return;
+    }
+
+    const zoomRange = (this.MAX_ZOOM || 0) - (this.MIN_ZOOM || 0);
+    if (!Number.isFinite(zoomRange) || zoomRange <= 0) {
+      const direction = delta > 0 ? -1 : 1;
+      this.setZoom(this.currentZoom + direction * this.ZOOM_STEP);
+      this.wheelFocusPoint = null;
+      return;
+    }
+
+    const pageDistance = this.getWheelPageDistance();
+    if (!Number.isFinite(pageDistance) || pageDistance <= 0) {
+      this.wheelFocusPoint = null;
+      return;
+    }
+
+    const zoomDelta = (-delta / pageDistance) * zoomRange;
+    if (!Number.isFinite(zoomDelta) || zoomDelta === 0) {
+      this.wheelFocusPoint = null;
+      return;
+    }
+
+    const targetZoom = this.currentZoom + zoomDelta;
+    const focusPoint = this.wheelFocusPoint;
+    this.wheelFocusPoint = null;
+
+    const zoomOptions = {
+      animate: true,
+    };
+
+    if (focusPoint) {
+      zoomOptions.focusX = focusPoint.baseX;
+      zoomOptions.focusY = focusPoint.baseY;
+      if (typeof focusPoint.pointerOffsetX === "number") {
+        zoomOptions.focusOffsetX = focusPoint.pointerOffsetX;
+      }
+      if (typeof focusPoint.pointerOffsetY === "number") {
+        zoomOptions.focusOffsetY = focusPoint.pointerOffsetY;
+      }
+    }
+
+    this.setZoom(targetZoom, zoomOptions);
+  }
+
+  getWheelPageDistance() {
+    if (this.container && this.container.clientHeight) {
+      return Math.max(200, this.container.clientHeight);
+    }
+    if (typeof window !== "undefined" && window.innerHeight) {
+      return Math.max(200, window.innerHeight);
+    }
+    return 600;
+  }
+
+  enableDragPan() {
+    if (!this.container || this.dragListenersAttached) {
+      return;
+    }
+
+    this.boundPointerDown =
+      this.boundPointerDown || ((event) => this.handlePointerDown(event));
+    this.boundPointerMove =
+      this.boundPointerMove || ((event) => this.handlePointerMove(event));
+    this.boundPointerUp =
+      this.boundPointerUp || ((event) => this.handlePointerUp(event));
+    this.boundMouseDown =
+      this.boundMouseDown || ((event) => this.handleMouseDown(event));
+    this.boundMouseMove =
+      this.boundMouseMove || ((event) => this.handleMouseMove(event));
+    this.boundMouseUp =
+      this.boundMouseUp || ((event) => this.handleMouseUp(event));
+    this.boundTouchStart =
+      this.boundTouchStart || ((event) => this.handleTouchStart(event));
+    this.boundTouchMove =
+      this.boundTouchMove || ((event) => this.handleTouchMove(event));
+    this.boundTouchEnd =
+      this.boundTouchEnd || ((event) => this.handleTouchEnd(event));
+
+    this.container.addEventListener("pointerdown", this.boundPointerDown);
+    window.addEventListener("pointermove", this.boundPointerMove);
+    window.addEventListener("pointerup", this.boundPointerUp);
+    window.addEventListener("pointercancel", this.boundPointerUp);
+
+    this.container.addEventListener("mousedown", this.boundMouseDown);
+    window.addEventListener("mousemove", this.boundMouseMove);
+    window.addEventListener("mouseup", this.boundMouseUp);
+
+    this.container.addEventListener("touchstart", this.boundTouchStart, {
+      passive: false,
+    });
+    window.addEventListener("touchmove", this.boundTouchMove, {
+      passive: false,
+    });
+    window.addEventListener("touchend", this.boundTouchEnd);
+    window.addEventListener("touchcancel", this.boundTouchEnd);
+
+    if (this.container.style) {
+      this.container.style.touchAction = this.pointerEventsSupported
+        ? "pan-x pan-y"
+        : "none";
+    }
+    this.dragListenersAttached = true;
+  }
+
+  handlePointerDown(event) {
+    if (this.panMode !== "drag" || !this.container) {
+      return;
+    }
+    if (!event.isPrimary) {
+      return;
+    }
+    if (event.pointerType === "mouse" && event.button !== 0) {
+      return;
+    }
+    if (
+      this.zoomMode === "click" &&
+      (event.metaKey || event.ctrlKey || event.altKey)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    this.beginDrag({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId:
+        typeof event.pointerId === "number" ? event.pointerId : event.pointerId,
+      inputType: event.pointerType || "pointer",
+      sourceEvent: event,
+    });
+  }
+
+  handlePointerMove(event) {
+    if (
+      !this.dragState.isActive ||
+      !this.container ||
+      (this.dragState.pointerId !== null &&
+        typeof event.pointerId === "number" &&
+        event.pointerId !== this.dragState.pointerId)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    this.updateDrag({
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }
+
+  handlePointerUp(event) {
+    if (
+      !this.dragState.isActive ||
+      (this.dragState.pointerId !== null &&
+        typeof event.pointerId === "number" &&
+        event.pointerId !== this.dragState.pointerId)
+    ) {
+      return;
+    }
+
+    this.endDrag({
+      pointerId:
+        typeof event.pointerId === "number" ? event.pointerId : null,
+      sourceEvent: event,
+    });
+  }
+
+  handleMouseDown(event) {
+    if (this.panMode !== "drag" || !this.container) {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    this.beginDrag({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId: "mouse",
+      inputType: "mouse",
+    });
+  }
+
+  handleMouseMove(event) {
+    if (
+      !this.dragState.isActive ||
+      this.dragState.inputType !== "mouse" ||
+      !this.container
+    ) {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+
+    event.preventDefault();
+    this.updateDrag({
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }
+
+  handleMouseUp() {
+    if (!this.dragState.isActive || this.dragState.inputType !== "mouse") {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+
+    this.endDrag({ pointerId: "mouse" });
+  }
+
+  handleTouchStart(event) {
+    if (this.panMode !== "drag" || !this.container) {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+    if (!event.touches || !event.touches.length) {
+      return;
+    }
+
+    const touch = event.touches[0];
+    event.preventDefault();
+    this.beginDrag({
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      pointerId: touch.identifier,
+      inputType: "touch",
+    });
+  }
+
+  handleTouchMove(event) {
+    if (
+      !this.dragState.isActive ||
+      this.dragState.inputType !== "touch" ||
+      !this.container
+    ) {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+
+    const touch = this.getTrackedTouch(
+      event.touches,
+      this.dragState.pointerId
+    );
+    if (!touch) {
+      return;
+    }
+
+    event.preventDefault();
+    this.updateDrag({
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+    });
+  }
+
+  handleTouchEnd(event) {
+    if (
+      !this.dragState.isActive ||
+      this.dragState.inputType !== "touch"
+    ) {
+      return;
+    }
+    if (this.pointerEventsSupported) {
+      return;
+    }
+
+    const remainingTouch = this.getTrackedTouch(
+      event.touches,
+      this.dragState.pointerId
+    );
+    if (!remainingTouch) {
+      this.endDrag({ pointerId: this.dragState.pointerId });
+    }
+  }
+
+  beginDrag({
+    clientX,
+    clientY,
+    pointerId = null,
+    inputType = null,
+    sourceEvent = null,
+  }) {
+    if (!this.container) {
+      return;
+    }
+
+    if (this.dragState.isActive) {
+      this.endDrag();
+    }
+
+    this.dragState.isActive = true;
+    this.dragState.pointerId = pointerId;
+    this.dragState.inputType = inputType || null;
+    this.dragState.startX = clientX;
+    this.dragState.startY = clientY;
+    this.dragState.scrollLeft = this.container.scrollLeft;
+    this.dragState.scrollTop = this.container.scrollTop;
+    this.dragState.lastClientX = clientX;
+    this.dragState.lastClientY = clientY;
+    this.dragState.prevScrollBehavior =
+      typeof this.container.style.scrollBehavior === "string"
+        ? this.container.style.scrollBehavior
+        : "";
+
+    if (this.container && this.container.style) {
+      this.container.style.scrollBehavior = "auto";
+    }
+
+    if (this.container.classList) {
+      this.container.classList.add("is-dragging");
+    }
+
+    if (
+      sourceEvent &&
+      typeof sourceEvent.pointerId === "number" &&
+      typeof this.container.setPointerCapture === "function"
+    ) {
+      try {
+        this.container.setPointerCapture(sourceEvent.pointerId);
+      } catch (err) {
+        // Ignore pointer capture errors
+      }
+    }
+  }
+
+  updateDrag({ clientX, clientY }) {
+    if (!this.dragState.isActive || !this.container) {
+      return;
+    }
+
+    const deltaX = clientX - this.dragState.lastClientX;
+    const deltaY = clientY - this.dragState.lastClientY;
+
+    if (deltaX) {
+      this.container.scrollLeft -= deltaX;
+    }
+    if (deltaY) {
+      this.container.scrollTop -= deltaY;
+    }
+
+    this.dragState.lastClientX = clientX;
+    this.dragState.lastClientY = clientY;
+    this.dragState.scrollLeft = this.container.scrollLeft;
+    this.dragState.scrollTop = this.container.scrollTop;
+  }
+
+  endDrag({ pointerId = null, sourceEvent = null } = {}) {
+    if (!this.dragState.isActive) {
+      return;
+    }
+
+    if (
+      this.dragState.pointerId !== null &&
+      pointerId !== null &&
+      pointerId !== this.dragState.pointerId
+    ) {
+      return;
+    }
+
+    const capturedPointer = this.dragState.pointerId;
+
+    this.dragState.isActive = false;
+    this.dragState.pointerId = null;
+    this.dragState.inputType = null;
+    this.dragState.lastClientX = 0;
+    this.dragState.lastClientY = 0;
+    const previousScrollBehavior = this.dragState.prevScrollBehavior;
+    this.dragState.prevScrollBehavior = "";
+
+    if (this.container && this.container.classList) {
+      this.container.classList.remove("is-dragging");
+    }
+
+    if (
+      sourceEvent &&
+      typeof sourceEvent.pointerId === "number" &&
+      typeof this.container.releasePointerCapture === "function"
+    ) {
+      try {
+        this.container.releasePointerCapture(sourceEvent.pointerId);
+      } catch (err) {
+        // Ignore release errors
+      }
+    } else if (
+      typeof capturedPointer === "number" &&
+      typeof this.container.releasePointerCapture === "function"
+    ) {
+      try {
+        this.container.releasePointerCapture(capturedPointer);
+      } catch (err) {
+        // Ignore release errors
+      }
+    }
+
+    if (this.container && this.container.style) {
+      this.container.style.scrollBehavior = previousScrollBehavior || "";
+    }
+  }
+
+  getTrackedTouch(touchList, identifier) {
+    if (!touchList || identifier === null || typeof identifier === "undefined") {
+      return null;
+    }
+    for (let i = 0; i < touchList.length; i += 1) {
+      const touch = touchList[i];
+      if (touch.identifier === identifier) {
+        return touch;
+      }
+    }
+    return null;
+  }
+
+  handleContainerClick(event) {
+    if (this.zoomMode !== "click" || !this.container) {
+      return;
+    }
+
+    if (typeof event.button === "number" && event.button !== 0) {
+      return;
+    }
+
+    const isZoomOut = event.altKey;
+    const hasZoomInModifier = event.metaKey || event.ctrlKey;
+
+    if (!isZoomOut && !hasZoomInModifier) {
+      return;
+    }
+
+    const focusPoint = this.getFocusPointFromEvent(event);
+
+    const zoomOptions = { animate: true };
+    if (focusPoint) {
+      zoomOptions.focusX = focusPoint.baseX;
+      zoomOptions.focusY = focusPoint.baseY;
+      if (typeof focusPoint.pointerOffsetX === "number") {
+        zoomOptions.focusOffsetX = focusPoint.pointerOffsetX;
+      }
+      if (typeof focusPoint.pointerOffsetY === "number") {
+        zoomOptions.focusOffsetY = focusPoint.pointerOffsetY;
+      }
+    }
+
+    if (isZoomOut) {
+      event.preventDefault();
+      event.stopPropagation();
+      const targetZoom = this.currentZoom - this.ZOOM_STEP;
+      this.setZoom(targetZoom, zoomOptions);
+      return;
+    }
+
+    if (hasZoomInModifier) {
+      event.preventDefault();
+      event.stopPropagation();
+      const targetZoom = this.currentZoom + this.ZOOM_STEP;
+      this.setZoom(targetZoom, zoomOptions);
     }
   }
 
@@ -532,3 +1362,8 @@ class SVGViewer {
 
 // Export for global use
 window.SVGViewer = SVGViewer;
+
+// Support CommonJS/ESM consumers (e.g., unit tests).
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = SVGViewer;
+}

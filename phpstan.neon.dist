@@ -1,0 +1,27 @@
+includes:
+	- vendor/phpstan/phpstan/conf/config.level5.neon
+
+parameters:
+	tmpDir: build/phpstan
+	paths:
+		- wp-svg-viewer/svg-viewer-plugin.php
+		- wp-svg-viewer/admin
+	level: 5
+	bootstrapFiles:
+		- wp-svg-viewer/tests/bootstrap.php
+	stubFiles:
+		- vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+	ignoreErrors:
+		- '#^Function apply_filters\(\) not found.$#'
+		- '#^Function add_action\(\) not found.$#'
+		- '#^Function add_filter\(\) not found.$#'
+		- '#^Function remove_filter\(\) not found.$#'
+		- '#^Function remove_action\(\) not found.$#'
+		- '#^Function shortcode_atts\(\) not found.$#'
+		- '#^Function esc_url\(\) not found.$#'
+		- '#^Function esc_url_raw\(\) not found.$#'
+		- '#^Function wp_localize_script\(\) not found.$#'
+		- '#^Function wp_enqueue_script\(\) not found.$#'
+		- '#^Function wp_enqueue_style\(\) not found.$#'
+		- '#^Function wp_style_is\(\) not found.$#'
+

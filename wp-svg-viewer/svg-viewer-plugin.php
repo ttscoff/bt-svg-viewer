@@ -39,8 +39,12 @@ class SVG_Viewer
         'svg_viewer_button_foreground' => '_svg_button_foreground',
         'svg_viewer_button_fill' => '_svg_button_fill',
         'svg_viewer_button_border' => '_svg_button_border',
+        'svg_viewer_pan_mode' => '_svg_pan_mode',
+        'svg_viewer_zoom_mode' => '_svg_zoom_mode',
     );
     private $current_presets_admin_tab = null;
+    private $asset_version = null;
+    private $defaults_option_key = 'svg_viewer_preset_defaults';
 
     public static function get_instance()
     {
@@ -64,6 +68,277 @@ class SVG_Viewer
         add_filter('manage_svg_viewer_preset_posts_columns', array($this, 'add_shortcode_column'));
         add_action('manage_svg_viewer_preset_posts_custom_column', array($this, 'render_shortcode_column'), 10, 2);
         add_action('current_screen', array($this, 'maybe_setup_presets_screen'));
+        add_action('admin_post_svg_viewer_save_defaults', array($this, 'handle_save_default_options'));
+    }
+
+    /**
+     * Retrieve the default shortcode attributes.
+     *
+     * @return array
+     */
+    private function get_shortcode_default_attributes()
+    {
+        return array(
+            'src' => '',
+            'height' => '600px',
+            'class' => '',
+            'zoom' => '100',
+            'min_zoom' => '25',
+            'max_zoom' => '800',
+            'zoom_step' => '10',
+            'center_x' => '',
+            'center_y' => '',
+            'show_coords' => 'false',
+            'title' => '',
+            'caption' => '',
+            'id' => '',
+            'controls_position' => 'top',
+            'controls_buttons' => 'both',
+            'button_fill' => '',
+            'button_border' => '',
+            'button_background' => '',
+            'button_bg' => '',
+            'button_foreground' => '',
+            'button_fg' => '',
+            'pan' => '',
+            'pan_mode' => '',
+            'zoom_mode' => '',
+            'zoom_behavior' => '',
+            'zoom_interaction' => '',
+            'initial_zoom' => '',
+        );
+    }
+
+    /**
+     * Base preset editor form defaults.
+     *
+     * @return array
+     */
+    private function get_base_preset_form_defaults()
+    {
+        return array(
+            'src' => '',
+            'height' => '600px',
+            'min_zoom' => '25',
+            'max_zoom' => '800',
+            'initial_zoom' => '100',
+            'zoom_step' => '10',
+            'center_x' => '',
+            'center_y' => '',
+            'title' => '',
+            'caption' => '',
+            'attachment_id' => '',
+            'controls_position' => 'top',
+            'controls_buttons' => 'both',
+            'button_fill' => '',
+            'button_border' => '',
+            'button_foreground' => '',
+            'pan_mode' => 'scroll',
+            'zoom_mode' => 'super_scroll',
+            'debug_cache_bust' => '',
+        );
+    }
+
+    /**
+     * Default values for the preset editor form, including saved defaults.
+     *
+     * @return array
+     */
+    private function get_preset_form_defaults()
+    {
+        $base_defaults = $this->get_base_preset_form_defaults();
+        $saved_defaults = $this->get_saved_default_options();
+
+        $defaults = wp_parse_args($saved_defaults, $base_defaults);
+        $defaults['center_x'] = '';
+        $defaults['center_y'] = '';
+
+        return $defaults;
+    }
+
+    /**
+     * Retrieve the saved default options for new presets.
+     *
+     * @return array
+     */
+    private function get_saved_default_options()
+    {
+        $stored_defaults = get_option($this->defaults_option_key, array());
+
+        if (!is_array($stored_defaults)) {
+            return array();
+        }
+
+        return $this->sanitize_default_options($stored_defaults);
+    }
+
+    /**
+     * Sanitize a preset default options payload.
+     *
+     * @param mixed $data
+     * @return array
+     */
+    private function sanitize_default_options($data)
+    {
+        $data = is_array($data) ? $data : array();
+        $sanitized = array();
+
+        $field_map = array(
+            'src' => array('svg_viewer_src', 'src'),
+            'attachment_id' => array('svg_viewer_attachment_id', 'attachment_id'),
+            'height' => array('svg_viewer_height', 'height'),
+            'min_zoom' => array('svg_viewer_min_zoom', 'min_zoom'),
+            'max_zoom' => array('svg_viewer_max_zoom', 'max_zoom'),
+            'initial_zoom' => array('svg_viewer_initial_zoom', 'initial_zoom'),
+            'zoom_step' => array('svg_viewer_zoom_step', 'zoom_step'),
+            'title' => array('svg_viewer_title', 'title'),
+            'caption' => array('svg_viewer_caption', 'caption'),
+            'controls_position' => array('svg_viewer_controls_position', 'controls_position'),
+            'controls_buttons' => array('svg_viewer_controls_buttons', 'controls_buttons'),
+            'button_fill' => array('svg_viewer_button_fill', 'button_fill'),
+            'button_border' => array('svg_viewer_button_border', 'button_border'),
+            'button_foreground' => array('svg_viewer_button_foreground', 'button_foreground'),
+            'pan_mode' => array('svg_viewer_pan_mode', 'pan_mode'),
+            'zoom_mode' => array('svg_viewer_zoom_mode', 'zoom_mode'),
+            'debug_cache_bust' => array('svg_viewer_debug_cache_bust', 'debug_cache_bust'),
+        );
+
+        foreach ($field_map as $output_key => $input_keys) {
+            $raw_value = null;
+            $has_value = false;
+
+            foreach ($input_keys as $candidate_key) {
+                if (array_key_exists($candidate_key, $data)) {
+                    $raw_value = $data[$candidate_key];
+                    $has_value = true;
+                    break;
+                }
+            }
+
+            if (!$has_value) {
+                continue;
+            }
+
+            switch ($output_key) {
+                case 'src':
+                    if (is_string($raw_value)) {
+                        $src = trim($raw_value);
+                        if ($src !== '') {
+                            $sanitized['src'] = esc_url_raw($src);
+                        }
+                    }
+                    break;
+
+                case 'attachment_id':
+                    $attachment_id = absint($raw_value);
+                    if ($attachment_id > 0) {
+                        $sanitized['attachment_id'] = $attachment_id;
+                    }
+                    break;
+
+                case 'height':
+                    if (is_string($raw_value)) {
+                        $height = sanitize_text_field($raw_value);
+                        if ($height !== '') {
+                            $sanitized['height'] = $height;
+                        }
+                    }
+                    break;
+
+                case 'min_zoom':
+                case 'max_zoom':
+                case 'initial_zoom':
+                case 'zoom_step':
+                    $value_str = '';
+                    if (is_string($raw_value)) {
+                        $value_str = trim($raw_value);
+                    } elseif (is_numeric($raw_value)) {
+                        $value_str = (string) $raw_value;
+                    }
+                    if ($value_str === '' || !is_numeric($value_str)) {
+                        break;
+                    }
+                    $sanitized[$output_key] = sanitize_text_field($value_str);
+                    break;
+
+                case 'title':
+                    if (is_string($raw_value)) {
+                        $title = sanitize_text_field($raw_value);
+                        if ($title !== '') {
+                            $sanitized['title'] = $title;
+                        }
+                    }
+                    break;
+
+                case 'caption':
+                    if (is_string($raw_value)) {
+                        $caption = wp_kses_post($raw_value);
+                        if ($caption !== '') {
+                            $sanitized['caption'] = $caption;
+                        }
+                    }
+                    break;
+
+                case 'controls_position':
+                    if (is_string($raw_value)) {
+                        $position = strtolower(sanitize_text_field($raw_value));
+                        $allowed_positions = array('top', 'bottom', 'left', 'right');
+                        if (!in_array($position, $allowed_positions, true)) {
+                            $position = 'top';
+                        }
+                        $sanitized['controls_position'] = $position;
+                    }
+                    break;
+
+                case 'controls_buttons':
+                    if (is_string($raw_value)) {
+                        $buttons = sanitize_text_field($raw_value);
+                        if ($buttons !== '') {
+                            $sanitized['controls_buttons'] = $buttons;
+                        }
+                    }
+                    break;
+
+                case 'button_fill':
+                case 'button_border':
+                case 'button_foreground':
+                    $color = $this->sanitize_color_value(is_string($raw_value) ? $raw_value : (string) $raw_value);
+                    if ($color !== '') {
+                        $sanitized[$output_key] = $color;
+                    }
+                    break;
+
+                case 'pan_mode':
+                    $pan_mode = $this->normalize_pan_mode($raw_value);
+                    if ($pan_mode !== '') {
+                        $sanitized['pan_mode'] = $pan_mode;
+                    }
+                    break;
+
+                case 'zoom_mode':
+                    $zoom_mode = $this->normalize_zoom_mode($raw_value);
+                    if ($zoom_mode !== '') {
+                        $sanitized['zoom_mode'] = $zoom_mode;
+                    }
+                    break;
+
+                case 'debug_cache_bust':
+                    $is_enabled = false;
+                    if (is_bool($raw_value)) {
+                        $is_enabled = $raw_value;
+                    } elseif (is_string($raw_value)) {
+                        $is_enabled = in_array(strtolower($raw_value), array('1', 'true', 'yes', 'on'), true);
+                    } elseif (is_numeric($raw_value)) {
+                        $is_enabled = ((int) $raw_value) === 1;
+                    }
+                    if ($is_enabled) {
+                        $sanitized['debug_cache_bust'] = '1';
+                    }
+                    break;
+            }
+        }
+
+        return $sanitized;
     }
 
     /**
@@ -72,6 +347,68 @@ class SVG_Viewer
     public function load_textdomain()
     {
         load_plugin_textdomain('svg-viewer', false, dirname(plugin_basename(__FILE__)) . '/languages');
+    }
+
+    /**
+     * Determine whether assets should use a cache-busting version.
+     *
+     * @return bool
+     */
+    private function should_cache_bust_assets()
+    {
+        static $should_bust = null;
+
+        if ($should_bust !== null) {
+            return $should_bust;
+        }
+
+        $should_bust = false;
+        $host = wp_parse_url(home_url(), PHP_URL_HOST);
+
+        if (is_string($host) && preg_match('/^(dev|wptest)\./i', $host)) {
+            $should_bust = true;
+        } else {
+            $defaults = $this->get_saved_default_options();
+            if (!empty($defaults['debug_cache_bust'])) {
+                $should_bust = true;
+            }
+        }
+
+        /**
+         * Filters whether SVG Viewer assets should be cache busted.
+         *
+         * @param bool       $should_bust Whether to append a time-based suffix.
+         * @param SVG_Viewer $viewer      The plugin instance.
+         */
+        return (bool) apply_filters('svg_viewer_should_cache_bust_assets', $should_bust, $this);
+    }
+
+    /**
+     * Retrieve the asset version string for scripts and styles.
+     *
+     * @param string $context Asset context (frontend|admin).
+     * @return string
+     */
+    private function get_asset_version($context = 'frontend')
+    {
+        if ($this->asset_version === null) {
+            $version = $this->plugin_version;
+
+            if ($this->should_cache_bust_assets()) {
+                $version .= '-' . gmdate('YmdHis');
+            }
+
+            $this->asset_version = $version;
+        }
+
+        /**
+         * Filters the asset version string used by SVG Viewer.
+         *
+         * @param string     $version The computed version string.
+         * @param string     $context The asset context.
+         * @param SVG_Viewer $viewer  The plugin instance.
+         */
+        return (string) apply_filters('svg_viewer_asset_version', $this->asset_version, $context, $this);
     }
 
     /**
@@ -103,7 +440,7 @@ class SVG_Viewer
             return;
         }
 
-        $allowed_tabs = array('presets', 'help', 'changes');
+        $allowed_tabs = array('presets', 'defaults', 'help', 'changes');
         $requested_tab = isset($_GET['svg_tab']) ? sanitize_key(wp_unslash($_GET['svg_tab'])) : 'presets'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
         if (!in_array($requested_tab, $allowed_tabs, true)) {
@@ -134,6 +471,7 @@ class SVG_Viewer
         $base_url = add_query_arg('post_type', 'svg_viewer_preset', admin_url('edit.php'));
         $tabs = array(
             'presets' => __('Presets', 'svg-viewer'),
+            'defaults' => __('Default Options', 'svg-viewer'),
             'help' => __('Help', 'svg-viewer'),
             'changes' => __('Changes', 'svg-viewer'),
         );
@@ -183,6 +521,8 @@ class SVG_Viewer
             } else {
                 printf('<p>%s</p>', esc_html__('Help content is not available. Run the "Render Help/Changelog" build step to regenerate it.', 'svg-viewer'));
             }
+        } elseif ($this->current_presets_admin_tab === 'defaults') {
+            $this->render_presets_default_options_panel();
         } elseif ($this->current_presets_admin_tab === 'changes') {
             $changelog_markup = $this->get_admin_changelog_markup();
             if ($changelog_markup !== '') {
@@ -193,6 +533,201 @@ class SVG_Viewer
         }
 
         echo '</div>';
+    }
+
+    /**
+     * Render the defaults management panel.
+     *
+     * @return void
+     */
+    private function render_presets_default_options_panel()
+    {
+        if (!current_user_can('manage_options')) {
+            printf('<p>%s</p>', esc_html__('You do not have permission to modify the default options.', 'svg-viewer'));
+            return;
+        }
+
+        $defaults = $this->get_preset_form_defaults();
+        $status = isset($_GET['svg_defaults_status']) ? sanitize_key(wp_unslash($_GET['svg_defaults_status'])) : '';
+
+        if ($status === 'updated') {
+            echo '<div class="notice notice-success"><p>' . esc_html__('Default options updated.', 'svg-viewer') . '</p></div>';
+        } elseif ($status === 'error') {
+            echo '<div class="notice notice-error"><p>' . esc_html__('Unable to update the default options. Please try again.', 'svg-viewer') . '</p></div>';
+        }
+
+        $form_action = admin_url('admin-post.php');
+        ?>
+        <p><?php esc_html_e('Adjust the defaults that populate new SVG Viewer presets. Existing presets are not affected.', 'svg-viewer'); ?>
+        </p>
+        <p><?php esc_html_e('Center X and Center Y automatically default to the middle of the SVG and are not configurable here. Set preset-specific SVG sources while editing each preset.', 'svg-viewer'); ?>
+        </p>
+        <form method="post" action="<?php echo esc_url($form_action); ?>" class="svg-viewer-defaults-form">
+            <?php wp_nonce_field('svg_viewer_save_defaults', 'svg_viewer_defaults_nonce'); ?>
+            <input type="hidden" name="action" value="svg_viewer_save_defaults" />
+            <div class="svg-viewer-defaults-meta">
+                <div class="svg-viewer-field-group">
+                    <div class="svg-viewer-field">
+                        <label for="svg-viewer-default-height"><?php esc_html_e('Viewer Height', 'svg-viewer'); ?></label>
+                        <input type="text" id="svg-viewer-default-height" name="svg_viewer_height"
+                            value="<?php echo esc_attr($defaults['height']); ?>" placeholder="600px" />
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label for="svg-viewer-default-min-zoom"><?php esc_html_e('Min Zoom (%)', 'svg-viewer'); ?></label>
+                        <input type="number" id="svg-viewer-default-min-zoom" name="svg_viewer_min_zoom"
+                            value="<?php echo esc_attr($defaults['min_zoom']); ?>" min="1" step="1" />
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label for="svg-viewer-default-max-zoom"><?php esc_html_e('Max Zoom (%)', 'svg-viewer'); ?></label>
+                        <input type="number" id="svg-viewer-default-max-zoom" name="svg_viewer_max_zoom"
+                            value="<?php echo esc_attr($defaults['max_zoom']); ?>" min="1" step="1" />
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-initial-zoom"><?php esc_html_e('Initial Zoom (%)', 'svg-viewer'); ?></label>
+                        <input type="number" id="svg-viewer-default-initial-zoom" name="svg_viewer_initial_zoom"
+                            value="<?php echo esc_attr($defaults['initial_zoom']); ?>" min="1" step="1" />
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-zoom-step"><?php esc_html_e('Zoom Increment (%)', 'svg-viewer'); ?></label>
+                        <input type="number" id="svg-viewer-default-zoom-step" name="svg_viewer_zoom_step"
+                            value="<?php echo esc_attr($defaults['zoom_step']); ?>" min="0.1" step="0.1" />
+                    </div>
+                </div>
+
+                <div class="svg-viewer-field-group">
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-controls-position"><?php esc_html_e('Controls Position', 'svg-viewer'); ?></label>
+                        <select id="svg-viewer-default-controls-position" name="svg_viewer_controls_position">
+                            <?php
+                            $positions_options = array(
+                                'top' => __('Top', 'svg-viewer'),
+                                'bottom' => __('Bottom', 'svg-viewer'),
+                                'left' => __('Left', 'svg-viewer'),
+                                'right' => __('Right', 'svg-viewer'),
+                            );
+                            foreach ($positions_options as $pos_value => $label):
+                                ?>
+                                <option value="<?php echo esc_attr($pos_value); ?>" <?php selected($defaults['controls_position'], $pos_value); ?>>
+                                    <?php echo esc_html($label); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-controls-buttons"><?php esc_html_e('Controls Buttons/Layout', 'svg-viewer'); ?></label>
+                        <input type="text" id="svg-viewer-default-controls-buttons" name="svg_viewer_controls_buttons"
+                            value="<?php echo esc_attr($defaults['controls_buttons']); ?>" placeholder="both" />
+                        <p class="description">
+                            <?php esc_html_e('Combine multiple options with commas. Examples: both, icon, text, compact, labels-on-hover, minimal, alignleft, aligncenter, alignright, custom,both,aligncenter,zoom_in,zoom_out,reset,center,coords', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="svg-viewer-field-group">
+                    <div class="svg-viewer-field">
+                        <label for="svg-viewer-default-pan-mode"><?php esc_html_e('Pan Interaction', 'svg-viewer'); ?></label>
+                        <select id="svg-viewer-default-pan-mode" name="svg_viewer_pan_mode">
+                            <?php
+                            $pan_options = array(
+                                'scroll' => __('Scroll (default)', 'svg-viewer'),
+                                'drag' => __('Drag to pan', 'svg-viewer'),
+                            );
+                            foreach ($pan_options as $pan_value => $pan_label):
+                                ?>
+                                <option value="<?php echo esc_attr($pan_value); ?>" <?php selected($defaults['pan_mode'], $pan_value); ?>>
+                                    <?php echo esc_html($pan_label); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description">
+                            <?php esc_html_e('Choose how visitors move around the SVG. Drag temporarily replaces scroll when required by other settings.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label for="svg-viewer-default-zoom-mode"><?php esc_html_e('Zoom Interaction', 'svg-viewer'); ?></label>
+                        <select id="svg-viewer-default-zoom-mode" name="svg_viewer_zoom_mode">
+                            <?php
+                            $zoom_options = array(
+                                'super_scroll' => __('Cmd/Ctrl-scroll (default)', 'svg-viewer'),
+                                'scroll' => __('Scroll wheel (no modifier)', 'svg-viewer'),
+                                'click' => __('Modifier click', 'svg-viewer'),
+                            );
+                            foreach ($zoom_options as $zoom_value => $zoom_label):
+                                ?>
+                                <option value="<?php echo esc_attr($zoom_value); ?>" <?php selected($defaults['zoom_mode'], $zoom_value); ?>>
+                                    <?php echo esc_html($zoom_label); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description">
+                            <?php esc_html_e('Scroll wheel zoom overrides pan-on-scroll. Cmd/Ctrl-click zooms in and Option/Alt-click zooms out when using modifier click.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                    <div class="svg-viewer-field svg-viewer-field-checkbox">
+                        <label for="svg-viewer-debug-cache-bust">
+                            <input type="checkbox" id="svg-viewer-debug-cache-bust" name="svg_viewer_debug_cache_bust" value="1"
+                                <?php checked(!empty($defaults['debug_cache_bust'])); ?> />
+                            <?php esc_html_e('Enable asset cache busting for debugging', 'svg-viewer'); ?>
+                        </label>
+                        <p class="description">
+                            <?php esc_html_e('Adds a unique suffix to script and style versions so browsers always fetch the latest assets. Useful for local testing; disable for production.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="svg-viewer-field-group">
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-button-fill"><?php esc_html_e('Button Fill Color', 'svg-viewer'); ?></label>
+                        <input type="text" id="svg-viewer-default-button-fill" name="svg_viewer_button_fill"
+                            class="svg-viewer-color-field" value="<?php echo esc_attr($defaults['button_fill']); ?>"
+                            data-default-color="#0073aa" />
+                        <p class="description">
+                            <?php esc_html_e('Choose the primary color for the control buttons. Leave blank to use the default.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-button-border"><?php esc_html_e('Button Border Color', 'svg-viewer'); ?></label>
+                        <input type="text" id="svg-viewer-default-button-border" name="svg_viewer_button_border"
+                            class="svg-viewer-color-field" value="<?php echo esc_attr($defaults['button_border']); ?>"
+                            data-default-color="#0073aa" />
+                        <p class="description">
+                            <?php esc_html_e('Set the border color for the control buttons. Leave blank to match the fill color.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                    <div class="svg-viewer-field">
+                        <label
+                            for="svg-viewer-default-button-foreground"><?php esc_html_e('Button Foreground Color', 'svg-viewer'); ?></label>
+                        <input type="text" id="svg-viewer-default-button-foreground" name="svg_viewer_button_foreground"
+                            class="svg-viewer-color-field" value="<?php echo esc_attr($defaults['button_foreground']); ?>"
+                            data-default-color="#ffffff" />
+                        <p class="description">
+                            <?php esc_html_e('Set the icon and text color for the control buttons. Leave blank to use the default.', 'svg-viewer'); ?>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="svg-viewer-field">
+                    <label for="svg-viewer-default-title"><?php esc_html_e('Title (optional)', 'svg-viewer'); ?></label>
+                    <input type="text" id="svg-viewer-default-title" name="svg_viewer_title"
+                        value="<?php echo esc_attr($defaults['title']); ?>" />
+                </div>
+
+                <div class="svg-viewer-field">
+                    <label for="svg-viewer-default-caption"><?php esc_html_e('Caption (optional)', 'svg-viewer'); ?></label>
+                    <textarea id="svg-viewer-default-caption" name="svg_viewer_caption" rows="3"
+                        class="widefat"><?php echo esc_textarea($defaults['caption']); ?></textarea>
+                    <p class="description"><?php esc_html_e('Supports basic HTML formatting.', 'svg-viewer'); ?></p>
+                </div>
+            </div>
+            <?php submit_button(__('Save Default Options', 'svg-viewer')); ?>
+        </form>
+        <?php
     }
 
     /**
@@ -245,6 +780,64 @@ class SVG_Viewer
     }
 
     /**
+     * Handle saving default options from the presets list screen.
+     *
+     * @return void
+     */
+    public function handle_save_default_options()
+    {
+        if (!current_user_can('manage_options')) {
+            wp_die(esc_html__('You do not have permission to perform this action.', 'svg-viewer'));
+        }
+
+        if (!isset($_POST['svg_viewer_defaults_nonce']) || !wp_verify_nonce($_POST['svg_viewer_defaults_nonce'], 'svg_viewer_save_defaults')) {
+            wp_die(esc_html__('Security check failed. Please try again.', 'svg-viewer'));
+        }
+
+        $input_keys = array(
+            'svg_viewer_src',
+            'svg_viewer_attachment_id',
+            'svg_viewer_height',
+            'svg_viewer_min_zoom',
+            'svg_viewer_max_zoom',
+            'svg_viewer_initial_zoom',
+            'svg_viewer_zoom_step',
+            'svg_viewer_title',
+            'svg_viewer_caption',
+            'svg_viewer_controls_position',
+            'svg_viewer_controls_buttons',
+            'svg_viewer_button_fill',
+            'svg_viewer_button_border',
+            'svg_viewer_button_foreground',
+            'svg_viewer_pan_mode',
+            'svg_viewer_zoom_mode',
+            'svg_viewer_debug_cache_bust',
+        );
+
+        $raw_input = array();
+        foreach ($input_keys as $key) {
+            if (isset($_POST[$key])) {
+                $raw_input[$key] = wp_unslash($_POST[$key]);
+            }
+        }
+
+        $sanitized_defaults = $this->sanitize_default_options($raw_input);
+        update_option($this->defaults_option_key, $sanitized_defaults);
+
+        $redirect_url = add_query_arg(
+            array(
+                'post_type' => 'svg_viewer_preset',
+                'svg_tab' => 'defaults',
+                'svg_defaults_status' => 'updated',
+            ),
+            admin_url('edit.php')
+        );
+
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
+    /**
      * Allow SVG file uploads
      */
     public function svg_use_mimetypes($mimes)
@@ -258,24 +851,27 @@ class SVG_Viewer
      */
     public function enqueue_assets()
     {
+        $asset_version = $this->get_asset_version('frontend');
+
         wp_enqueue_style(
             'svg-viewer-style',
             plugins_url('css/svg-viewer.css', __FILE__),
             array(),
-            $this->plugin_version
+            $asset_version
         );
 
         wp_enqueue_script(
             'svg-viewer-script',
             plugins_url('js/svg-viewer.js', __FILE__),
             array(),
-            $this->plugin_version,
+            $asset_version,
             true
         );
 
         // Pass plugin URL to JavaScript
         wp_localize_script('svg-viewer-script', 'svgViewerConfig', array(
             'pluginUrl' => plugins_url('', __FILE__),
+            'assetVersion' => $asset_version,
         ));
     }
 
@@ -288,29 +884,7 @@ class SVG_Viewer
     {
         $raw_atts = is_array($atts) ? $atts : array();
 
-        $atts = shortcode_atts(array(
-            'src' => '',
-            'height' => '600px',
-            'class' => '',
-            'zoom' => '100',  // percentage
-            'min_zoom' => '25',   // percentage
-            'max_zoom' => '800',  // percentage
-            'zoom_step' => '10',   // percentage
-            'center_x' => '',
-            'center_y' => '',
-            'show_coords' => 'false',
-            'title' => '',
-            'caption' => '',
-            'id' => '',
-            'controls_position' => 'top',
-            'controls_buttons' => 'both',
-            'button_fill' => '',
-            'button_border' => '',
-            'button_background' => '',
-            'button_bg' => '',
-            'button_foreground' => '',
-            'button_fg' => '',
-        ), $atts, 'svg_viewer');
+        $atts = shortcode_atts($this->get_shortcode_default_attributes(), $atts, 'svg_viewer');
 
         if (!array_key_exists('button_fill', $raw_atts)) {
             if (array_key_exists('button_background', $raw_atts)) {
@@ -340,6 +914,16 @@ class SVG_Viewer
             $button_foreground = $atts['button_fg'];
         }
         $atts['button_foreground'] = $button_foreground;
+
+        if ($atts['initial_zoom'] !== '') {
+            $atts['zoom'] = $atts['initial_zoom'];
+        }
+
+        $zoom_mode_from_zoom = '';
+        if (isset($raw_atts['zoom']) && !is_numeric($raw_atts['zoom'])) {
+            $zoom_mode_from_zoom = $raw_atts['zoom'];
+            $atts['zoom'] = '100';
+        }
 
         if (!empty($atts['id'])) {
             $preset_id = absint($atts['id']);
@@ -378,6 +962,23 @@ class SVG_Viewer
                 }
             }
         }
+
+        $pan_mode_input = $atts['pan_mode'] !== '' ? $atts['pan_mode'] : $atts['pan'];
+        $zoom_mode_input = '';
+        if ($atts['zoom_mode'] !== '') {
+            $zoom_mode_input = $atts['zoom_mode'];
+        } elseif ($atts['zoom_behavior'] !== '') {
+            $zoom_mode_input = $atts['zoom_behavior'];
+        } elseif ($atts['zoom_interaction'] !== '') {
+            $zoom_mode_input = $atts['zoom_interaction'];
+        } elseif ($zoom_mode_from_zoom !== '') {
+            $zoom_mode_input = $zoom_mode_from_zoom;
+        }
+
+        $interaction_config = $this->resolve_interaction_config($pan_mode_input, $zoom_mode_input);
+        $pan_mode = $interaction_config['pan_mode'];
+        $zoom_mode = $interaction_config['zoom_mode'];
+        $interaction_messages = $interaction_config['messages'];
 
         // Validate src
         if (empty($atts['src'])) {
@@ -460,6 +1061,8 @@ class SVG_Viewer
             $wrapper_classes[] = 'controls-style-' . $style_class;
         }
         $wrapper_classes[] = 'controls-align-' . $controls_config['alignment'];
+        $wrapper_classes[] = 'pan-mode-' . $pan_mode;
+        $wrapper_classes[] = 'zoom-mode-' . $zoom_mode;
         if ($controls_config['mode'] === 'hidden') {
             $wrapper_classes[] = 'controls-hidden';
         }
@@ -477,6 +1080,8 @@ class SVG_Viewer
             $main_classes[] = 'controls-style-' . $style_class;
         }
         $main_classes[] = 'controls-align-' . $controls_config['alignment'];
+        $main_classes[] = 'pan-mode-' . $pan_mode;
+        $main_classes[] = 'zoom-mode-' . $zoom_mode;
 
         $wrapper_class_attribute = $this->build_class_attribute($wrapper_classes);
         $main_class_attribute = $this->build_class_attribute($main_classes);
@@ -502,6 +1107,11 @@ class SVG_Viewer
                     </div>
                 </div>
             </div>
+            <?php if (!empty($interaction_messages)): ?>
+                <div class="svg-viewer-caption svg-viewer-interaction-caption">
+                    <?php echo implode('<br />', array_map('esc_html', $interaction_messages)); ?>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($caption)): ?>
                 <div class="svg-viewer-caption"><?php echo wp_kses_post($caption); ?></div>
             <?php endif; ?>
@@ -524,7 +1134,9 @@ class SVG_Viewer
                             zoomStep: <?php echo json_encode($zoom_step); ?>,
                             centerX: <?php echo $center_x === null ? 'null' : json_encode($center_x); ?>,
                             centerY: <?php echo $center_y === null ? 'null' : json_encode($center_y); ?>,
-                            showCoordinates: <?php echo $show_coords ? 'true' : 'false'; ?>
+                            showCoordinates: <?php echo $show_coords ? 'true' : 'false'; ?>,
+                            panMode: <?php echo json_encode($pan_mode); ?>,
+                            zoomMode: <?php echo json_encode($zoom_mode); ?>
                         });
                     } else {
                         setTimeout(initViewer, 100);
@@ -611,37 +1223,40 @@ class SVG_Viewer
         wp_enqueue_style('wp-color-picker');
         wp_enqueue_script('wp-color-picker');
 
+        $asset_version = $this->get_asset_version('admin');
+
         wp_enqueue_style(
             'svg-viewer-style',
             plugins_url('css/svg-viewer.css', __FILE__),
             array(),
-            $this->plugin_version
+            $asset_version
         );
 
         wp_enqueue_style(
             'svg-viewer-admin',
             plugins_url('admin/css/admin.css', __FILE__),
             array('svg-viewer-style'),
-            $this->plugin_version
+            $asset_version
         );
 
         wp_enqueue_script(
             'svg-viewer-script',
             plugins_url('js/svg-viewer.js', __FILE__),
             array(),
-            $this->plugin_version,
+            $asset_version,
             true
         );
 
         wp_localize_script('svg-viewer-script', 'svgViewerConfig', array(
             'pluginUrl' => plugins_url('', __FILE__),
+            'assetVersion' => $asset_version,
         ));
 
         wp_enqueue_script(
             'svg-viewer-admin',
             plugins_url('admin/js/admin.js', __FILE__),
             array('jquery', 'svg-viewer-script', 'wp-color-picker'),
-            $this->plugin_version,
+            $asset_version,
             true
         );
 
@@ -654,10 +1269,13 @@ class SVG_Viewer
                 'captureFailed' => __('Unable to capture the current state. Refresh the preview and try again.', 'svg-viewer'),
                 'copySuccess' => __('Shortcode copied to clipboard.', 'svg-viewer'),
                 'copyFailed' => __('Press ⌘/Ctrl+C to copy the shortcode.', 'svg-viewer'),
+                'fullCopySuccess' => __('Full shortcode copied to clipboard.', 'svg-viewer'),
             ),
             'controls' => array(
                 'buttons' => $button_definitions,
             ),
+            'formDefaults' => $this->get_preset_form_defaults(),
+            'assetVersion' => $asset_version,
         ));
     }
 
@@ -683,24 +1301,7 @@ class SVG_Viewer
     {
         wp_nonce_field('svg_viewer_preset_meta', 'svg_viewer_preset_nonce');
 
-        $defaults = array(
-            'src' => '',
-            'height' => '600px',
-            'min_zoom' => '25',
-            'max_zoom' => '800',
-            'initial_zoom' => '100',
-            'zoom_step' => '10',
-            'center_x' => '',
-            'center_y' => '',
-            'title' => '',
-            'caption' => '',
-            'attachment_id' => '',
-            'controls_position' => 'top',
-            'controls_buttons' => 'both',
-            'button_fill' => '',
-            'button_border' => '',
-            'button_foreground' => '',
-        );
+        $defaults = $this->get_preset_form_defaults();
 
         $values = array(
             'src' => get_post_meta($post->ID, '_svg_src', true),
@@ -719,9 +1320,19 @@ class SVG_Viewer
             'button_fill' => get_post_meta($post->ID, '_svg_button_fill', true),
             'button_border' => get_post_meta($post->ID, '_svg_button_border', true),
             'button_foreground' => get_post_meta($post->ID, '_svg_button_foreground', true),
+            'pan_mode' => get_post_meta($post->ID, '_svg_pan_mode', true),
+            'zoom_mode' => get_post_meta($post->ID, '_svg_zoom_mode', true),
         );
 
+        foreach ($values as $key => $value) {
+            if ($value === '' || $value === null) {
+                unset($values[$key]);
+            }
+        }
+
         $values = wp_parse_args($values, $defaults);
+        $values['pan_mode'] = $this->normalize_pan_mode($values['pan_mode']);
+        $values['zoom_mode'] = $this->normalize_zoom_mode($values['zoom_mode']);
 
         $viewer_id = 'svg-viewer-admin-' . uniqid();
         $shortcode = $this->get_preset_shortcode($post->ID);
@@ -745,12 +1356,17 @@ class SVG_Viewer
             $max_zoom_percent_value,
             $zoom_step_percent_value
         );
+        $preview_interactions = $this->resolve_interaction_config($values['pan_mode'], $values['zoom_mode']);
+        $preview_pan_mode = $preview_interactions['pan_mode'];
+        $preview_zoom_mode = $preview_interactions['zoom_mode'];
 
         $wrapper_classes = array(
             'svg-viewer-wrapper',
             'svg-viewer-admin-wrapper',
             'controls-position-' . $preview_controls_config['position'],
             'controls-mode-' . $preview_controls_config['mode'],
+            'pan-mode-' . $preview_pan_mode,
+            'zoom-mode-' . $preview_zoom_mode,
         );
         foreach ($preview_controls_config['styles'] as $style_class) {
             $wrapper_classes[] = 'controls-style-' . $style_class;
@@ -763,6 +1379,8 @@ class SVG_Viewer
             'svg-viewer-main',
             'controls-position-' . $preview_controls_config['position'],
             'controls-mode-' . $preview_controls_config['mode'],
+            'pan-mode-' . $preview_pan_mode,
+            'zoom-mode-' . $preview_zoom_mode,
         );
         foreach ($preview_controls_config['styles'] as $style_class) {
             $main_classes[] = 'controls-style-' . $style_class;
@@ -801,7 +1419,8 @@ class SVG_Viewer
             <div class="svg-viewer-tab-panels">
                 <div class="svg-viewer-tab-panel is-active" role="tabpanel" id="<?php echo esc_attr($settings_panel_id); ?>"
                     aria-labelledby="<?php echo esc_attr($settings_panel_id); ?>-tab" data-tab-panel="settings">
-                    <div class="svg-viewer-admin-meta" data-viewer-id="<?php echo esc_attr($viewer_id); ?>">
+                    <div class="svg-viewer-admin-meta" data-viewer-id="<?php echo esc_attr($viewer_id); ?>"
+                        data-preset-id="<?php echo esc_attr($post->ID); ?>">
                         <div class="svg-viewer-shortcode-display">
                             <label for="svg-viewer-shortcode"><?php esc_html_e('Preset Shortcode', 'svg-viewer'); ?></label>
                             <div class="svg-shortcode-wrap">
@@ -810,6 +1429,9 @@ class SVG_Viewer
                                 <button type="button" class="button svg-shortcode-copy"
                                     data-shortcode="<?php echo esc_attr($shortcode); ?>">
                                     <?php esc_html_e('Copy', 'svg-viewer'); ?>
+                                </button>
+                                <button type="button" class="button svg-shortcode-full">
+                                    <?php esc_html_e('Full Shortcode', 'svg-viewer'); ?>
                                 </button>
                                 <span class="svg-shortcode-status" aria-live="polite"></span>
                             </div>
@@ -907,6 +1529,48 @@ class SVG_Viewer
 
                         <div class="svg-viewer-field-group">
                             <div class="svg-viewer-field">
+                                <label for="svg-viewer-pan-mode"><?php esc_html_e('Pan Interaction', 'svg-viewer'); ?></label>
+                                <select id="svg-viewer-pan-mode" name="svg_viewer_pan_mode">
+                                    <?php
+                                    $pan_options = array(
+                                        'scroll' => __('Scroll (default)', 'svg-viewer'),
+                                        'drag' => __('Drag to pan', 'svg-viewer'),
+                                    );
+                                    foreach ($pan_options as $pan_value => $pan_label):
+                                        ?>
+                                        <option value="<?php echo esc_attr($pan_value); ?>" <?php selected($values['pan_mode'], $pan_value); ?>>
+                                            <?php echo esc_html($pan_label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e('Choose how visitors move around the SVG. Drag temporarily replaces scroll when required by other settings.', 'svg-viewer'); ?>
+                                </p>
+                            </div>
+                            <div class="svg-viewer-field">
+                                <label for="svg-viewer-zoom-mode"><?php esc_html_e('Zoom Interaction', 'svg-viewer'); ?></label>
+                                <select id="svg-viewer-zoom-mode" name="svg_viewer_zoom_mode">
+                                    <?php
+                                    $zoom_options = array(
+                                        'super_scroll' => __('Cmd/Ctrl-scroll (default)', 'svg-viewer'),
+                                        'scroll' => __('Scroll wheel (no modifier)', 'svg-viewer'),
+                                        'click' => __('Modifier click', 'svg-viewer'),
+                                    );
+                                    foreach ($zoom_options as $zoom_value => $zoom_label):
+                                        ?>
+                                        <option value="<?php echo esc_attr($zoom_value); ?>" <?php selected($values['zoom_mode'], $zoom_value); ?>>
+                                            <?php echo esc_html($zoom_label); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e('Scroll wheel zoom overrides pan-on-scroll. Cmd/Ctrl-click zooms in and Option/Alt-click zooms out when using modifier click.', 'svg-viewer'); ?>
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="svg-viewer-field-group">
+                            <div class="svg-viewer-field">
                                 <label
                                     for="svg-viewer-button-fill"><?php esc_html_e('Button Fill Color', 'svg-viewer'); ?></label>
                                 <input type="text" id="svg-viewer-button-fill" name="svg_viewer_button_fill"
@@ -976,6 +1640,8 @@ class SVG_Viewer
                                         <div class="svg-viewport" data-viewer="<?php echo esc_attr($viewer_id); ?>"></div>
                                     </div>
                                 </div>
+                                <div class="svg-viewer-caption svg-viewer-interaction-caption js-admin-interaction-caption"
+                                    hidden></div>
                                 <div class="svg-viewer-caption js-admin-caption" hidden></div>
                             </div>
                         </div>
@@ -1649,6 +2315,77 @@ class SVG_Viewer
     }
 
     /**
+     * Normalize pan mode value.
+     *
+     * @param mixed $value Raw value.
+     * @return string
+     */
+    private function normalize_pan_mode($value)
+    {
+        $pan_mode = is_string($value) ? strtolower(trim($value)) : '';
+        return $pan_mode === 'drag' ? 'drag' : 'scroll';
+    }
+
+    /**
+     * Normalize zoom mode value.
+     *
+     * @param mixed $value Raw value.
+     * @return string
+     */
+    private function normalize_zoom_mode($value)
+    {
+        $zoom_mode = is_string($value) ? strtolower(trim($value)) : '';
+        $zoom_mode = str_replace(array(' ', '-'), '_', $zoom_mode);
+        if ($zoom_mode === 'click') {
+            return 'click';
+        }
+        if ($zoom_mode === 'scroll') {
+            return 'scroll';
+        }
+        return 'super_scroll';
+    }
+
+    /**
+     * Resolve pan/zoom interaction configuration including helper messages.
+     *
+     * @param mixed $pan_value
+     * @param mixed $zoom_value
+     * @return array{pan_mode:string,zoom_mode:string,messages:array}
+     */
+    private function resolve_interaction_config($pan_value, $zoom_value)
+    {
+        $pan_mode = $this->normalize_pan_mode($pan_value);
+        $zoom_mode = $this->normalize_zoom_mode($zoom_value);
+        $messages = array();
+
+        if ($zoom_mode === 'scroll' && $pan_mode === 'scroll') {
+            $pan_mode = 'drag';
+        }
+
+        if ($zoom_mode === 'click') {
+            $messages[] = __('Cmd/Ctrl-click to zoom in, Option/Alt-click to zoom out.', 'svg-viewer');
+        } elseif ($zoom_mode === 'scroll') {
+            $messages[] = __('Scroll up to zoom in, scroll down to zoom out.', 'svg-viewer');
+        }
+
+        if ($pan_mode === 'drag') {
+            if ($zoom_mode === 'scroll') {
+                $messages[] = __('Drag to pan around the image while scrolling zooms.', 'svg-viewer');
+            } else {
+                $messages[] = __('Drag to pan around the image.', 'svg-viewer');
+            }
+        }
+
+        $messages = array_values(array_unique(array_filter($messages)));
+
+        return array(
+            'pan_mode' => $pan_mode,
+            'zoom_mode' => $zoom_mode,
+            'messages' => $messages,
+        );
+    }
+
+    /**
      * Save preset meta data
      */
     public function save_preset_meta($post_id, $post)
@@ -1719,6 +2456,22 @@ class SVG_Viewer
             delete_post_meta($post_id, '_svg_controls_buttons');
         }
 
+        $pan_mode_input = isset($_POST['svg_viewer_pan_mode']) ? wp_unslash($_POST['svg_viewer_pan_mode']) : '';
+        $pan_mode_value = $this->normalize_pan_mode($pan_mode_input);
+        if ($pan_mode_value === 'scroll') {
+            delete_post_meta($post_id, '_svg_pan_mode');
+        } else {
+            update_post_meta($post_id, '_svg_pan_mode', $pan_mode_value);
+        }
+
+        $zoom_mode_input = isset($_POST['svg_viewer_zoom_mode']) ? wp_unslash($_POST['svg_viewer_zoom_mode']) : '';
+        $zoom_mode_value = $this->normalize_zoom_mode($zoom_mode_input);
+        if ($zoom_mode_value === 'super_scroll') {
+            delete_post_meta($post_id, '_svg_zoom_mode');
+        } else {
+            update_post_meta($post_id, '_svg_zoom_mode', $zoom_mode_value);
+        }
+
         foreach ($numeric_fields as $meta_key => $post_key) {
             if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
                 $value = floatval(wp_unslash($_POST[$post_key]));
@@ -1785,6 +2538,8 @@ class SVG_Viewer
             'button_fill' => get_post_meta($preset_id, '_svg_button_fill', true),
             'button_border' => get_post_meta($preset_id, '_svg_button_border', true),
             'button_foreground' => get_post_meta($preset_id, '_svg_button_foreground', true),
+            'pan_mode' => get_post_meta($preset_id, '_svg_pan_mode', true),
+            'zoom_mode' => get_post_meta($preset_id, '_svg_zoom_mode', true),
         );
 
         if (empty($settings['height'])) {
@@ -1802,7 +2557,11 @@ class SVG_Viewer
         $settings['button_fill'] = $this->sanitize_color_value($settings['button_fill']);
         $settings['button_border'] = $this->sanitize_color_value($settings['button_border']);
         $settings['button_foreground'] = $this->sanitize_color_value($settings['button_foreground']);
-
+        $settings['pan_mode'] = $this->normalize_pan_mode($settings['pan_mode']);
+        $settings['zoom_mode'] = $this->normalize_zoom_mode($settings['zoom_mode']);
+        $settings['pan'] = $settings['pan_mode'];
+        $settings['zoom_behavior'] = $settings['zoom_mode'];
+        $settings['zoom_interaction'] = $settings['zoom_mode'];
 
         foreach (array('min_zoom', 'max_zoom', 'zoom', 'zoom_step', 'center_x', 'center_y') as $key) {
             if ($settings[$key] !== '' && $settings[$key] !== null) {

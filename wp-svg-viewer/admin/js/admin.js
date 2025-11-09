@@ -26,10 +26,15 @@
     $status.data("svgTimeoutId", timeoutId);
   }
 
-  async function copyShortcode(shortcode, $status) {
+  async function copyShortcode(shortcode, $status, successKey = "copySuccess") {
     if (!shortcode) {
       return;
     }
+
+    const fallbackSuccess =
+      successKey === "fullCopySuccess"
+        ? "Full shortcode copied to clipboard."
+        : "Shortcode copied to clipboard.";
 
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -42,10 +47,7 @@
         document.execCommand("copy");
         $temp.remove();
       }
-      updateStatus(
-        $status,
-        getI18n("copySuccess", "Shortcode copied to clipboard.")
-      );
+      updateStatus($status, getI18n(successKey, fallbackSuccess));
     } catch (err) {
       console.warn("Shortcode copy failed", err);
       updateStatus(
@@ -53,6 +55,157 @@
         getI18n("copyFailed", "Press ⌘/Ctrl+C to copy the shortcode.")
       );
     }
+  }
+
+  function getFormDefaults() {
+    if (
+      window.svgViewerAdmin &&
+      svgViewerAdmin.formDefaults &&
+      typeof svgViewerAdmin.formDefaults === "object"
+    ) {
+      return svgViewerAdmin.formDefaults;
+    }
+    return {};
+  }
+
+  function mapFieldKeyToAttribute(key) {
+    if (!key) {
+      return null;
+    }
+    if (key === "preset_nonce") {
+      return null;
+    }
+    if (key === "attachment_id") {
+      return null;
+    }
+    if (key === "initial_zoom") {
+      return "zoom";
+    }
+    return key;
+  }
+
+  function getFieldControlValue($field) {
+    if (!$field || !$field.length) {
+      return "";
+    }
+    const rawValue = $field.val();
+    if (Array.isArray(rawValue)) {
+      return rawValue
+        .map(function (item) {
+          return item == null ? "" : String(item);
+        })
+        .filter(function (item) {
+          return item !== "";
+        })
+        .join(",");
+    }
+    if (rawValue == null) {
+      return "";
+    }
+    return typeof rawValue === "string" ? rawValue : String(rawValue);
+  }
+
+  function normalizeForComparison(value) {
+    if (value == null) {
+      return "";
+    }
+    return String(value).trim();
+  }
+
+  function escapeShortcodeValue(value) {
+    return String(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/\r?\n/g, "&#10;")
+      .replace(/"/g, '\\"')
+      .replace(/\[/g, "\\[")
+      .replace(/\]/g, "\\]");
+  }
+
+  function buildFullShortcode($metaBox) {
+    if (!$metaBox || !$metaBox.length) {
+      return "";
+    }
+
+    const defaults = getFormDefaults();
+    const values = {};
+    const order = [];
+    const seenKeys = new Set();
+
+    $metaBox.find("[name^='svg_viewer_']").each(function () {
+      const $field = $(this);
+      const name = $field.attr("name");
+      if (!name) {
+        return;
+      }
+      const baseKey = name.replace(/^svg_viewer_/, "");
+      if (!baseKey || seenKeys.has(baseKey)) {
+        return;
+      }
+      seenKeys.add(baseKey);
+
+      const attrName = mapFieldKeyToAttribute(baseKey);
+      if (!attrName) {
+        return;
+      }
+
+      const rawValue = getFieldControlValue($field);
+      const comparisonValue = normalizeForComparison(rawValue);
+      const defaultValue = Object.prototype.hasOwnProperty.call(
+        defaults,
+        baseKey
+      )
+        ? normalizeForComparison(defaults[baseKey])
+        : undefined;
+
+      if (
+        comparisonValue === "" &&
+        (typeof defaultValue === "undefined" || defaultValue === "")
+      ) {
+        if (attrName !== "src") {
+          return;
+        }
+      }
+
+      if (
+        typeof defaultValue !== "undefined" &&
+        comparisonValue === defaultValue &&
+        attrName !== "src"
+      ) {
+        return;
+      }
+
+      if (attrName === "src" && comparisonValue === "") {
+        return;
+      }
+
+      const finalValue =
+        typeof rawValue === "string" ? rawValue.trim() : rawValue;
+      values[attrName] = finalValue;
+      order.push(attrName);
+    });
+
+    if (!values.src) {
+      return "";
+    }
+
+    const parts = order
+      .filter(function (attr) {
+        return (
+          Object.prototype.hasOwnProperty.call(values, attr) &&
+          values[attr] !== "" &&
+          values[attr] !== null &&
+          typeof values[attr] !== "undefined"
+        );
+      })
+      .map(function (attr) {
+        return attr + '="' + escapeShortcodeValue(values[attr]) + '"';
+      });
+
+    if (!parts.length) {
+      return "";
+    }
+
+    return "[svg_viewer " + parts.join(" ") + "]";
   }
 
   function initTabs($root) {
@@ -190,6 +343,69 @@
     return isFinite(num) ? num : null;
   }
 
+  function normalizePanMode(value) {
+    const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return raw === "drag" ? "drag" : "scroll";
+  }
+
+  function normalizeZoomMode(value) {
+    const raw = typeof value === "string" ? value.trim().toLowerCase() : "";
+    if (raw === "click") {
+      return "click";
+    }
+    if (raw === "scroll") {
+      return "scroll";
+    }
+    return "super_scroll";
+  }
+
+  function resolveInteractionConfig(panInput, zoomInput) {
+    let panMode = normalizePanMode(panInput);
+    const zoomMode = normalizeZoomMode(zoomInput);
+    const messages = [];
+
+    if (zoomMode === "scroll" && panMode === "scroll") {
+      panMode = "drag";
+    }
+
+    if (zoomMode === "click") {
+      messages.push("Cmd/Ctrl-click to zoom in, Option/Alt-click to zoom out.");
+    } else if (zoomMode === "scroll") {
+      messages.push("Scroll up to zoom in, scroll down to zoom out.");
+    }
+
+    if (panMode === "drag") {
+      if (zoomMode === "scroll") {
+        messages.push("Drag to pan around the image while scrolling zooms.");
+      } else {
+        messages.push("Drag to pan around the image.");
+      }
+    }
+
+    const deduped = Array.from(new Set(messages.filter(Boolean)));
+
+    return {
+      panMode,
+      zoomMode,
+      messages: deduped,
+    };
+  }
+
+  function removeInteractionClasses($element) {
+    if (!$element || !$element.length) {
+      return;
+    }
+    const classList = ($element.attr("class") || "").split(/\s+/);
+    classList.forEach((cls) => {
+      if (
+        cls &&
+        (cls.indexOf("pan-mode-") === 0 || cls.indexOf("zoom-mode-") === 0)
+      ) {
+        $element.removeClass(cls);
+      }
+    });
+  }
+
   function expandShorthandHex(hex) {
     if (!hex || hex.length !== 4) {
       return hex;
@@ -292,7 +508,10 @@
       }
 
       if (effectiveBorder) {
-        element.style.setProperty("--svg-viewer-button-border", effectiveBorder);
+        element.style.setProperty(
+          "--svg-viewer-button-border",
+          effectiveBorder
+        );
       }
 
       if (sanitizedForeground) {
@@ -628,7 +847,10 @@
       const parsedStep = parseInt(zoomStepPercent, 10);
       const sliderMin = Number.isFinite(parsedMin) ? parsedMin : 1;
       const sliderMax = Number.isFinite(parsedMax) ? parsedMax : 800;
-      const sliderStep = Math.max(1, Number.isFinite(parsedStep) ? parsedStep : 1);
+      const sliderStep = Math.max(
+        1,
+        Number.isFinite(parsedStep) ? parsedStep : 1
+      );
       const $slider = $("<input/>", {
         type: "range",
         class: "zoom-slider",
@@ -790,6 +1012,16 @@
       'input[name="svg_viewer_controls_buttons"]',
       "both"
     );
+    const panModeRaw = getFieldValue(
+      $metaBox,
+      'select[name="svg_viewer_pan_mode"]',
+      "scroll"
+    );
+    const zoomModeRaw = getFieldValue(
+      $metaBox,
+      'select[name="svg_viewer_zoom_mode"]',
+      "super_scroll"
+    );
 
     const minZoom = parsePercentage(minZoomPercent, 0.25);
     const maxZoom = parsePercentage(maxZoomPercent, 8);
@@ -811,6 +1043,8 @@
       controlsButtonsValue,
       false
     );
+
+    const interactionConfig = resolveInteractionConfig(panModeRaw, zoomModeRaw);
     applyControlsConfig(
       $wrapper,
       controlsConfig,
@@ -821,6 +1055,20 @@
       maxZoomPercent,
       zoomStepPercent
     );
+
+    const $mainWrapper = ensureMainWrapper($wrapper, viewerId);
+    removeInteractionClasses($wrapper);
+    removeInteractionClasses($mainWrapper);
+    const resolvedPanMode = interactionConfig.panMode;
+    const resolvedZoomMode = interactionConfig.zoomMode;
+    $wrapper
+      .addClass("pan-mode-" + resolvedPanMode)
+      .addClass("zoom-mode-" + resolvedZoomMode);
+    if ($mainWrapper && $mainWrapper.length) {
+      $mainWrapper
+        .addClass("pan-mode-" + resolvedPanMode)
+        .addClass("zoom-mode-" + resolvedZoomMode);
+    }
 
     const currentInstances = window.svgViewerInstances || {};
     if (currentInstances[viewerId] && currentInstances[viewerId].destroy) {
@@ -844,6 +1092,14 @@
 
     setViewerText($wrapper.find(".js-admin-title"), title);
     setViewerText($wrapper.find(".js-admin-caption"), caption);
+    const $interactionCaption = $wrapper.find(".js-admin-interaction-caption");
+    if (interactionConfig.messages.length) {
+      $interactionCaption
+        .removeAttr("hidden")
+        .html(interactionConfig.messages.join("<br />"));
+    } else {
+      $interactionCaption.attr("hidden", true).empty();
+    }
 
     if (typeof window.svgViewerInstances === "undefined") {
       window.svgViewerInstances = {};
@@ -859,6 +1115,8 @@
       centerX,
       centerY,
       showCoordinates: true,
+      panMode: resolvedPanMode,
+      zoomMode: resolvedZoomMode,
     });
     window.svgViewerInstances[viewerId] = instance;
   }
@@ -942,6 +1200,17 @@
   function initColorPickers($metaBox, viewerId) {
     const $fields = $metaBox.find(".svg-viewer-color-field");
 
+    const resolveTargetWrapper = function () {
+      if (typeof viewerId === "string" && viewerId.length) {
+        return $("#" + viewerId);
+      }
+      const dataTarget = $metaBox.data("previewTarget");
+      if (typeof dataTarget === "string" && dataTarget.length) {
+        return $("#" + dataTarget);
+      }
+      return $();
+    };
+
     const refreshColors = function () {
       const fill = getFieldValue(
         $metaBox,
@@ -958,7 +1227,10 @@
         'input[name="svg_viewer_button_foreground"]',
         ""
       );
-      applyButtonColors($("#" + viewerId), fill, border, foreground);
+      const $target = resolveTargetWrapper();
+      if ($target && $target.length) {
+        applyButtonColors($target, fill, border, foreground);
+      }
     };
 
     if (typeof $.fn.wpColorPicker === "function" && $fields.length) {
@@ -995,6 +1267,42 @@
       const shortcode = $button.data("shortcode");
       const $status = $button.siblings(".svg-shortcode-status");
       copyShortcode(shortcode, $status);
+    });
+
+    $(document).on("click", ".svg-shortcode-full", function (event) {
+      event.preventDefault();
+      const $button = $(this);
+      const $metaBox = $button.closest(".svg-viewer-admin-meta");
+      const $status = $button.siblings(".svg-shortcode-status");
+      const shortcode = buildFullShortcode($metaBox);
+
+      if (!shortcode) {
+        if ($status && $status.length) {
+          $status.addClass("error");
+          updateStatus(
+            $status,
+            getI18n(
+              "missingSrc",
+              "Please select an SVG before loading the preview."
+            )
+          );
+        }
+        return;
+      }
+
+      if ($status && $status.length) {
+        $status.removeClass("error");
+      }
+
+      copyShortcode(shortcode, $status, "fullCopySuccess");
+    });
+
+    const $defaultsMeta = $(".svg-viewer-defaults-meta");
+    $defaultsMeta.each(function () {
+      const $metaBox = $(this);
+      const viewerId = $metaBox.data("viewerId") || "";
+      bindMediaSelector($metaBox);
+      initColorPickers($metaBox, viewerId);
     });
 
     const $metaBoxes = $(".svg-viewer-admin-meta");

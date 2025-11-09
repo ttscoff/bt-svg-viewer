@@ -1,0 +1,15 @@
+{
+  "name": "wp-svg-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "vitest run",
+    "test:js:watch": "vitest",
+    "lint:js": "eslint . --ext .js --ignore-path .gitignore || true"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "vitest": "^1.6.0"
+  }
+}
+

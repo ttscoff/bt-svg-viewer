@@ -15,6 +15,7 @@ Embed large, detailed SVG diagrams in WordPress with an accessible viewer that s
 
 = Highlights =
 * Interactive zoom and pan controls with keyboard shortcuts and optional slider mode.
+* Smooth, cursor-focused zoom animations with click-drag panning.
 * Preset post type with live preview, copy-ready shortcodes, and color pickers for control styling.
 * Fine-grained shortcode attributes for height, zoom bounds, center coordinates, titles, and captions.
 * Front-end wrapper classes and CSS custom properties for deep theme integration.
@@ -57,6 +58,12 @@ All bundled icon markup runs through `wp_kses` to keep the controls safe. Upload
 
 == Changelog ==
 
+= 1.1.0 =
+* Add shortcode/preset pan and zoom modes with automatic gesture captions.
+* Animate zoom transitions while keeping the pointer focus locked in place.
+* Make drag panning 1:1 and pause wheel-driven panning conflicts.
+* Add an “Enable asset cache busting for debugging” toggle (auto-enabled on `dev.*`/`wptest.*` hosts).
+
 = 1.0.7 =
 * Improve preset styling controls and document CSS custom properties for button colors.
 * Add shortcode aliases for `button_bg` and `button_fg`, mapping them to the modern color system.
@@ -89,6 +96,6 @@ All bundled icon markup runs through `wp_kses` to keep the controls safe. Upload
 
 == Upgrade Notice ==
 
-= 1.0.7 =
-Update to 1.0.7 to gain clearer button color aliases, refreshed preset guidance, and the latest bundled documentation.
+= 1.1.0 =
+Update to 1.1.0 for animated cursor-focused zoom, drag-pan refinements, and new pan/zoom interaction options with built-in user guidance.
 

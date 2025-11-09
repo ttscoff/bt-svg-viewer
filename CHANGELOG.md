@@ -1,3 +1,18 @@
+### 1.1.0
+
+2025-11-09 14:10
+
+#### NEW
+
+- Pan and zoom interaction modes configurable via shortcode/preset, with automatic gesture captions.
+- Smooth, cursor-focused zoom animations for wheel, slider, and modifier-click gestures.
+- Defaults tab option to enable asset cache busting for debugging (auto-enabled on `dev.*` / `wptest.*` domains).
+
+#### IMPROVED
+
+- Drag panning now tracks 1:1 with the pointer and ignores stray wheel input.
+- Zooming keeps the focus point locked under the cursor while preventing unintended panning.
+
 ### 1.0.6
 
 2025-11-08 10:35
