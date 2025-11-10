@@ -3,3 +3,4 @@
 commit_message.txt
 vendor
 .DS_Store
+node_modules
