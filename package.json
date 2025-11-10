@@ -5,6 +5,7 @@
   "scripts": {
     "test:js": "vitest run",
     "test:js:watch": "vitest",
+    "test:all": "composer run test:all && npm run test:js",
     "lint:js": "eslint . --ext .js --ignore-path .gitignore || true"
   },
   "devDependencies": {
@@ -12,4 +13,3 @@
     "vitest": "^1.6.0"
   }
 }
-
