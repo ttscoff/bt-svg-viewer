@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: WP SVG Viewer
+ * Plugin Name: SVG Viewer
  * Plugin URI: https://github.com/ttscoff/wp-svg-viewer/
  * Description: Embed interactive SVG files with zoom and pan controls
  * Version: 1.0.12

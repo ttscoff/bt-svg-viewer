@@ -1,4 +1,4 @@
-=== WP SVG Viewer ===
+=== SVG Viewer ===
 A shortcode-powered SVG viewer with reusable presets, zoom, and pan controls.
 
 Contributors: ttscoff
@@ -13,7 +13,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 == Description ==
 
-Embed large, detailed SVG diagrams in WordPress with an accessible viewer that supports touch-friendly zooming, panning, and centering. WP SVG Viewer keeps maps, technical drawings, and infographics sharp on every screen, while giving editors a visual preset builder so they can reuse configurations without repeating shortcode attributes.
+Embed large, detailed SVG diagrams in WordPress with an accessible viewer that supports touch-friendly zooming, panning, and centering. SVG Viewer keeps maps, technical drawings, and infographics sharp on every screen, while giving editors a visual preset builder so they can reuse configurations without repeating shortcode attributes.
 
 = Highlights =
 * Interactive zoom and pan controls with keyboard shortcuts and optional slider mode.
