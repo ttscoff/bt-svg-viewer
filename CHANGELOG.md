@@ -1,3 +1,11 @@
+### 1.0.12
+
+2025-11-10 04:59
+
+#### FIXED
+
+- Rename without WP for plugin submission
+
 ### 1.0.10
 
 2025-11-09 13:24
