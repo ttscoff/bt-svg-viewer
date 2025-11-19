@@ -1,3 +1,11 @@
+### 1.0.19
+
+2025-11-19 10:40
+
+#### CHANGED
+
+- Changed class name to use plugin prefix
+
 ### 1.0.18
 
 2025-11-19 10:39
