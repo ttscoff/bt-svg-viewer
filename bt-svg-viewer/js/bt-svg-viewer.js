@@ -1602,3 +1602,75 @@ window.SVGViewer = SVGViewer;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = SVGViewer;
 }
+
+if (typeof window !== "undefined") {
+  (function bootstrapViewerQueue(global) {
+    const queueName = "BTSVVI_VIEWER_QUEUE";
+    const instancesKey = "BTSVVI_VIEWER_INSTANCES";
+
+    function ensureContainers() {
+      if (!global[instancesKey]) {
+        global[instancesKey] = {};
+      }
+      if (!global.svgViewerInstances) {
+        global.svgViewerInstances = global[instancesKey];
+      }
+      if (!Array.isArray(global[queueName])) {
+        global[queueName] = [];
+      }
+    }
+
+    function instantiateViewer(config) {
+      if (!config || typeof config.viewerId !== "string") {
+        return;
+      }
+      try {
+        const instance = new global.SVGViewer(config);
+        global[instancesKey][config.viewerId] = instance;
+        global.svgViewerInstances[config.viewerId] = instance;
+      } catch (error) {
+        if (typeof console !== "undefined" && console.error) {
+          console.error("BT SVG Viewer init failed:", error);
+        }
+      }
+    }
+
+    function flushQueue() {
+      const queue = global[queueName];
+      if (!Array.isArray(queue)) {
+        return;
+      }
+      while (queue.length) {
+        instantiateViewer(queue.shift());
+      }
+      const originalPush = queue.push.bind(queue);
+      queue.push = function patchedPush() {
+        for (let i = 0; i < arguments.length; i += 1) {
+          instantiateViewer(arguments[i]);
+        }
+        return queue.length;
+      };
+      queue.originalPush = originalPush;
+    }
+
+    function initializeWhenReady() {
+      ensureContainers();
+      flushQueue();
+    }
+
+    if (typeof document === "undefined") {
+      initializeWhenReady();
+      return;
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener(
+        "DOMContentLoaded",
+        initializeWhenReady,
+        { once: true }
+      );
+    } else {
+      initializeWhenReady();
+    }
+  })(window);
+}

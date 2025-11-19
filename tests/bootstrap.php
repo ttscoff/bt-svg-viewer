@@ -4,6 +4,11 @@
  *
  * @package Wp_Svg_Viewer
  */
+
+if (!defined('ABSPATH') && PHP_SAPI !== 'cli' && PHP_SAPI !== 'phpdbg') {
+	exit;
+}
+
 if (file_exists(__DIR__ . '/wp-tests-env.php')) {
 	require_once __DIR__ . '/wp-tests-env.php';
 }

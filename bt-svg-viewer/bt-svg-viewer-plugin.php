@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class SVG_Viewer
+class BTSVVI_Viewer
 {
     private static $instance = null;
     private $plugin_version = '1.0.15';
@@ -37,8 +37,6 @@ class SVG_Viewer
         'svg_viewer_button_fill' => '_svg_button_fill',
         'svg_viewer_button_border' => '_svg_button_border',
         'svg_viewer_button_foreground' => '_svg_button_foreground',
-        'svg_viewer_button_fill' => '_svg_button_fill',
-        'svg_viewer_button_border' => '_svg_button_border',
         'svg_viewer_pan_mode' => '_svg_pan_mode',
         'svg_viewer_zoom_mode' => '_svg_zoom_mode',
     );
@@ -369,7 +367,7 @@ class SVG_Viewer
          * Filters whether BT SVG Viewer assets should be cache busted.
          *
          * @param bool       $should_bust Whether to append a time-based suffix.
-         * @param SVG_Viewer $viewer      The plugin instance.
+         * @param BTSVVI_Viewer $viewer      The plugin instance.
          */
         return (bool) apply_filters('svg_viewer_should_cache_bust_assets', $should_bust, $this);
     }
@@ -397,7 +395,7 @@ class SVG_Viewer
          *
          * @param string     $version The computed version string.
          * @param string     $context The asset context.
-         * @param SVG_Viewer $viewer  The plugin instance.
+         * @param BTSVVI_Viewer $viewer  The plugin instance.
          */
         return (string) apply_filters('svg_viewer_asset_version', $this->asset_version, $context, $this);
     }
@@ -444,7 +442,7 @@ class SVG_Viewer
         add_action('all_admin_notices', array($this, 'render_presets_screen_tab_content'));
 
         if ($requested_tab !== 'presets') {
-            add_action('admin_head', array($this, 'hide_presets_list_ui'));
+            add_action('admin_enqueue_scripts', array($this, 'enqueue_presets_screen_styles'), 20);
         }
     }
 
@@ -539,6 +537,7 @@ class SVG_Viewer
         }
 
         $defaults = $this->get_preset_form_defaults();
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only query arg for status messaging.
         $status = isset($_GET['svg_defaults_status']) ? sanitize_key(wp_unslash($_GET['svg_defaults_status'])) : '';
 
         if ($status === 'updated') {
@@ -564,12 +563,14 @@ class SVG_Viewer
                             value="<?php echo esc_attr($defaults['height']); ?>" placeholder="600px" />
                     </div>
                     <div class="bt-svg-viewer-field">
-                        <label for="bt-svg-viewer-default-min-zoom"><?php esc_html_e('Min Zoom (%)', 'bt-svg-viewer'); ?></label>
+                        <label
+                            for="bt-svg-viewer-default-min-zoom"><?php esc_html_e('Min Zoom (%)', 'bt-svg-viewer'); ?></label>
                         <input type="number" id="bt-svg-viewer-default-min-zoom" name="svg_viewer_min_zoom"
                             value="<?php echo esc_attr($defaults['min_zoom']); ?>" min="1" step="1" />
                     </div>
                     <div class="bt-svg-viewer-field">
-                        <label for="bt-svg-viewer-default-max-zoom"><?php esc_html_e('Max Zoom (%)', 'bt-svg-viewer'); ?></label>
+                        <label
+                            for="bt-svg-viewer-default-max-zoom"><?php esc_html_e('Max Zoom (%)', 'bt-svg-viewer'); ?></label>
                         <input type="number" id="bt-svg-viewer-default-max-zoom" name="svg_viewer_max_zoom"
                             value="<?php echo esc_attr($defaults['max_zoom']); ?>" min="1" step="1" />
                     </div>
@@ -662,8 +663,8 @@ class SVG_Viewer
                     </div>
                     <div class="bt-svg-viewer-field bt-svg-viewer-field-checkbox">
                         <label for="bt-svg-viewer-debug-cache-bust">
-                            <input type="checkbox" id="bt-svg-viewer-debug-cache-bust" name="svg_viewer_debug_cache_bust" value="1"
-                                <?php checked(!empty($defaults['debug_cache_bust'])); ?> />
+                            <input type="checkbox" id="bt-svg-viewer-debug-cache-bust" name="svg_viewer_debug_cache_bust"
+                                value="1" <?php checked(!empty($defaults['debug_cache_bust'])); ?> />
                             <?php esc_html_e('Enable asset cache busting for debugging', 'bt-svg-viewer'); ?>
                         </label>
                         <p class="description">
@@ -712,7 +713,8 @@ class SVG_Viewer
                 </div>
 
                 <div class="bt-svg-viewer-field">
-                    <label for="bt-svg-viewer-default-caption"><?php esc_html_e('Caption (optional)', 'bt-svg-viewer'); ?></label>
+                    <label
+                        for="bt-svg-viewer-default-caption"><?php esc_html_e('Caption (optional)', 'bt-svg-viewer'); ?></label>
                     <textarea id="bt-svg-viewer-default-caption" name="svg_viewer_caption" rows="3"
                         class="widefat"><?php echo esc_textarea($defaults['caption']); ?></textarea>
                     <p class="description"><?php esc_html_e('Supports basic HTML formatting.', 'bt-svg-viewer'); ?></p>
@@ -728,48 +730,30 @@ class SVG_Viewer
      *
      * @return void
      */
-    public function hide_presets_list_ui()
+    public function enqueue_presets_screen_styles()
     {
         if ($this->current_presets_admin_tab === null || $this->current_presets_admin_tab === 'presets') {
             return;
         }
-        ?>
-        <style>
-            .post-type-svg_viewer_preset .wrap .tablenav,
-            .post-type-svg_viewer_preset .wrap .wp-list-table,
-            .post-type-svg_viewer_preset .wrap .subsubsub,
-            .post-type-svg_viewer_preset .wrap .search-box,
-            .post-type-svg_viewer_preset .wrap .tablenav.bottom,
-            .post-type-svg_viewer_preset .wrap .wp-heading-inline,
-            .post-type-svg_viewer_preset .wrap .page-title-action,
-            .post-type-svg_viewer_preset .wrap .alignleft.actions,
-            .post-type-svg_viewer_preset .wrap .tablenav-pages,
-            #screen-options-link-wrap,
-            #contextual-help-link {
-                display: none !important;
-            }
 
-            .bt-svg-viewer-admin-screen-panel {
-                margin-top: 20px;
-                background: #fff;
-                padding: 20px;
-                border: 1px solid #dcdcde;
-                box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
-            }
+        $css_rules = array(
+            '.post-type-svg_viewer_preset .wrap .tablenav,' .
+            '.post-type-svg_viewer_preset .wrap .wp-list-table,' .
+            '.post-type-svg_viewer_preset .wrap .subsubsub,' .
+            '.post-type-svg_viewer_preset .wrap .search-box,' .
+            '.post-type-svg_viewer_preset .wrap .tablenav.bottom,' .
+            '.post-type-svg_viewer_preset .wrap .wp-heading-inline,' .
+            '.post-type-svg_viewer_preset .wrap .page-title-action,' .
+            '.post-type-svg_viewer_preset .wrap .alignleft.actions,' .
+            '.post-type-svg_viewer_preset .wrap .tablenav-pages,' .
+            '#screen-options-link-wrap,' .
+            '#contextual-help-link { display: none !important; }',
+            '.bt-svg-viewer-admin-screen-panel { margin-top: 20px; background: #fff; padding: 20px; border: 1px solid #dcdcde; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04); }',
+            '.bt-svg-viewer-admin-screen-panel table { width: 100%; border-collapse: collapse; }',
+            '.bt-svg-viewer-admin-screen-panel th, .bt-svg-viewer-admin-screen-panel td { border: 1px solid #dcdcde; padding: 8px; text-align: left; }',
+        );
 
-            .bt-svg-viewer-admin-screen-panel table {
-                width: 100%;
-                border-collapse: collapse;
-            }
-
-            .bt-svg-viewer-admin-screen-panel th,
-            .bt-svg-viewer-admin-screen-panel td {
-                border: 1px solid #dcdcde;
-                padding: 8px;
-                text-align: left;
-            }
-        </style>
-        <?php
+        wp_add_inline_style('bt-svg-viewer-admin', implode("\n", $css_rules));
     }
 
     /**
@@ -783,7 +767,9 @@ class SVG_Viewer
             wp_die(esc_html__('You do not have permission to perform this action.', 'bt-svg-viewer'));
         }
 
-        if (!isset($_POST['svg_viewer_defaults_nonce']) || !wp_verify_nonce($_POST['svg_viewer_defaults_nonce'], 'svg_viewer_save_defaults')) {
+        $defaults_nonce = isset($_POST['svg_viewer_defaults_nonce']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_defaults_nonce'])) : '';
+
+        if ($defaults_nonce === '' || !wp_verify_nonce($defaults_nonce, 'svg_viewer_save_defaults')) {
             wp_die(esc_html__('Security check failed. Please try again.', 'bt-svg-viewer'));
         }
 
@@ -810,6 +796,7 @@ class SVG_Viewer
         $raw_input = array();
         foreach ($input_keys as $key) {
             if (isset($_POST[$key])) {
+                // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized field-by-field in sanitize_default_options().
                 $raw_input[$key] = wp_unslash($_POST[$key]);
             }
         }
@@ -1080,6 +1067,22 @@ class SVG_Viewer
         $wrapper_class_attribute = $this->build_class_attribute($wrapper_classes);
         $main_class_attribute = $this->build_class_attribute($main_classes);
 
+        $viewer_config = array(
+            'viewerId' => $viewer_id,
+            'svgUrl' => $svg_url,
+            'initialZoom' => $initial_zoom,
+            'minZoom' => $min_zoom,
+            'maxZoom' => $max_zoom,
+            'zoomStep' => $zoom_step,
+            'centerX' => $center_x,
+            'centerY' => $center_y,
+            'showCoordinates' => $show_coords,
+            'panMode' => $pan_mode,
+            'zoomMode' => $zoom_mode,
+        );
+
+        $this->queue_viewer_initialization($viewer_config);
+
         ob_start();
         ?>
         <div class="<?php echo esc_attr($wrapper_class_attribute); ?>" id="<?php echo esc_attr($viewer_id); ?>" <?php
@@ -1110,42 +1113,34 @@ class SVG_Viewer
                 <div class="bt-svg-viewer-caption"><?php echo wp_kses_post($caption); ?></div>
             <?php endif; ?>
         </div>
-        <script>
-            (function () {
-                if (typeof window.svgViewerInstances === 'undefined') {
-                    window.svgViewerInstances = {};
-                }
-
-                // Initialize viewer when ready
-                function initViewer() {
-                    if (typeof SVGViewer !== 'undefined') {
-                        window.svgViewerInstances['<?php echo esc_js($viewer_id); ?>'] = new SVGViewer({
-                            viewerId: '<?php echo esc_js($viewer_id); ?>',
-                            svgUrl: '<?php echo esc_url($svg_url); ?>',
-                            initialZoom: <?php echo json_encode($initial_zoom); ?>,
-                            minZoom: <?php echo json_encode($min_zoom); ?>,
-                            maxZoom: <?php echo json_encode($max_zoom); ?>,
-                            zoomStep: <?php echo json_encode($zoom_step); ?>,
-                            centerX: <?php echo $center_x === null ? 'null' : json_encode($center_x); ?>,
-                            centerY: <?php echo $center_y === null ? 'null' : json_encode($center_y); ?>,
-                            showCoordinates: <?php echo $show_coords ? 'true' : 'false'; ?>,
-                            panMode: <?php echo json_encode($pan_mode); ?>,
-                            zoomMode: <?php echo json_encode($zoom_mode); ?>
-                        });
-                    } else {
-                        setTimeout(initViewer, 100);
-                    }
-                }
-
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', initViewer);
-                } else {
-                    initViewer();
-                }
-            })();
-        </script>
         <?php
         return ob_get_clean();
+    }
+
+    /**
+     * Queue inline viewer initialization data for JavaScript consumption.
+     *
+     * @param array $config Viewer configuration.
+     * @return void
+     */
+    private function queue_viewer_initialization(array $config)
+    {
+        if (empty($config['viewerId']) || empty($config['svgUrl'])) {
+            return;
+        }
+
+        wp_enqueue_script('bt-svg-viewer-script');
+
+        $config_json = wp_json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        if (false === $config_json) {
+            return;
+        }
+
+        $inline = 'window.BTSVVI_VIEWER_QUEUE = window.BTSVVI_VIEWER_QUEUE || [];'
+            . 'window.BTSVVI_VIEWER_QUEUE.push(' . $config_json . ');';
+
+        wp_add_inline_script('bt-svg-viewer-script', $inline, 'after');
     }
 
     /**
@@ -1400,8 +1395,9 @@ class SVG_Viewer
                     aria-controls="<?php echo esc_attr($settings_panel_id); ?>" aria-selected="true" data-tab-target="settings">
                     <?php esc_html_e('Settings', 'bt-svg-viewer'); ?>
                 </button>
-                <button type="button" class="bt-svg-viewer-tab-button" role="tab" id="<?php echo esc_attr($help_panel_id); ?>-tab"
-                    aria-controls="<?php echo esc_attr($help_panel_id); ?>" aria-selected="false" data-tab-target="help">
+                <button type="button" class="bt-svg-viewer-tab-button" role="tab"
+                    id="<?php echo esc_attr($help_panel_id); ?>-tab" aria-controls="<?php echo esc_attr($help_panel_id); ?>"
+                    aria-selected="false" data-tab-target="help">
                     <?php esc_html_e('Help', 'bt-svg-viewer'); ?>
                 </button>
                 <button type="button" class="bt-svg-viewer-tab-button" role="tab"
@@ -1416,7 +1412,8 @@ class SVG_Viewer
                     <div class="bt-svg-viewer-admin-meta" data-viewer-id="<?php echo esc_attr($viewer_id); ?>"
                         data-preset-id="<?php echo esc_attr($post->ID); ?>">
                         <div class="bt-svg-viewer-shortcode-display">
-                            <label for="bt-svg-viewer-shortcode"><?php esc_html_e('Preset Shortcode', 'bt-svg-viewer'); ?></label>
+                            <label
+                                for="bt-svg-viewer-shortcode"><?php esc_html_e('Preset Shortcode', 'bt-svg-viewer'); ?></label>
                             <div class="svg-shortcode-wrap">
                                 <input type="text" id="bt-svg-viewer-shortcode" class="svg-shortcode-input" readonly
                                     value="<?php echo esc_attr($shortcode); ?>">
@@ -1454,12 +1451,14 @@ class SVG_Viewer
                                     value="<?php echo esc_attr($values['height']); ?>" placeholder="600px" />
                             </div>
                             <div class="bt-svg-viewer-field">
-                                <label for="bt-svg-viewer-min-zoom"><?php esc_html_e('Min Zoom (%)', 'bt-svg-viewer'); ?></label>
+                                <label
+                                    for="bt-svg-viewer-min-zoom"><?php esc_html_e('Min Zoom (%)', 'bt-svg-viewer'); ?></label>
                                 <input type="number" id="bt-svg-viewer-min-zoom" name="svg_viewer_min_zoom"
                                     value="<?php echo esc_attr($values['min_zoom']); ?>" min="1" step="1" />
                             </div>
                             <div class="bt-svg-viewer-field">
-                                <label for="bt-svg-viewer-max-zoom"><?php esc_html_e('Max Zoom (%)', 'bt-svg-viewer'); ?></label>
+                                <label
+                                    for="bt-svg-viewer-max-zoom"><?php esc_html_e('Max Zoom (%)', 'bt-svg-viewer'); ?></label>
                                 <input type="number" id="bt-svg-viewer-max-zoom" name="svg_viewer_max_zoom"
                                     value="<?php echo esc_attr($values['max_zoom']); ?>" min="1" step="1" />
                             </div>
@@ -1590,7 +1589,8 @@ class SVG_Viewer
                                 <label
                                     for="bt-svg-viewer-button-foreground"><?php esc_html_e('Button Foreground Color', 'bt-svg-viewer'); ?></label>
                                 <input type="text" id="bt-svg-viewer-button-foreground" name="svg_viewer_button_foreground"
-                                    class="bt-svg-viewer-color-field" value="<?php echo esc_attr($values['button_foreground']); ?>"
+                                    class="bt-svg-viewer-color-field"
+                                    value="<?php echo esc_attr($values['button_foreground']); ?>"
                                     data-default-color="#ffffff" />
                                 <p class="description">
                                     <?php esc_html_e('Set the icon and text color for the control buttons. Leave blank to use the default.', 'bt-svg-viewer'); ?>
@@ -1605,7 +1605,8 @@ class SVG_Viewer
                         </div>
 
                         <div class="bt-svg-viewer-field">
-                            <label for="bt-svg-viewer-caption"><?php esc_html_e('Caption (optional)', 'bt-svg-viewer'); ?></label>
+                            <label
+                                for="bt-svg-viewer-caption"><?php esc_html_e('Caption (optional)', 'bt-svg-viewer'); ?></label>
                             <textarea id="bt-svg-viewer-caption" name="svg_viewer_caption" rows="3"
                                 class="widefat"><?php echo esc_textarea($values['caption']); ?></textarea>
                             <p class="description"><?php esc_html_e('Supports basic HTML formatting.', 'bt-svg-viewer'); ?></p>
@@ -1714,10 +1715,12 @@ class SVG_Viewer
         $sanitized = wp_kses_post($raw_html);
         $cached_markup = $sanitized;
 
+        $cache_ttl = defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400;
+
         set_transient($transient_key, array(
             'mtime' => $modified_time,
             'html' => $sanitized,
-        ), DAY_IN_SECONDS);
+        ), $cache_ttl);
 
         return $cached_markup;
     }
@@ -1761,10 +1764,12 @@ class SVG_Viewer
         $sanitized = wp_kses_post($raw_html);
         $cached_changelog = $sanitized;
 
+        $cache_ttl = defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400;
+
         set_transient($transient_key, array(
             'mtime' => $modified_time,
             'html' => $sanitized,
-        ), DAY_IN_SECONDS);
+        ), $cache_ttl);
 
         return $cached_changelog;
     }
@@ -2476,7 +2481,9 @@ class SVG_Viewer
      */
     public function save_preset_meta($post_id, $post)
     {
-        if (!isset($_POST['svg_viewer_preset_nonce']) || !wp_verify_nonce($_POST['svg_viewer_preset_nonce'], 'svg_viewer_preset_meta')) {
+        $preset_nonce = isset($_POST['svg_viewer_preset_nonce']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_preset_nonce'])) : '';
+
+        if ($preset_nonce === '' || !wp_verify_nonce($preset_nonce, 'svg_viewer_preset_meta')) {
             return;
         }
 
@@ -2492,8 +2499,8 @@ class SVG_Viewer
             return;
         }
 
-        $raw_src = isset($_POST['svg_viewer_src']) ? wp_unslash($_POST['svg_viewer_src']) : '';
-        $attachment_id = isset($_POST['svg_viewer_attachment_id']) ? absint($_POST['svg_viewer_attachment_id']) : '';
+        $raw_src = isset($_POST['svg_viewer_src']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_src'])) : '';
+        $attachment_id = isset($_POST['svg_viewer_attachment_id']) ? absint(wp_unslash($_POST['svg_viewer_attachment_id'])) : '';
         $height = isset($_POST['svg_viewer_height']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_height'])) : '';
 
         $numeric_fields = array(
@@ -2542,7 +2549,7 @@ class SVG_Viewer
             delete_post_meta($post_id, '_svg_controls_buttons');
         }
 
-        $pan_mode_input = isset($_POST['svg_viewer_pan_mode']) ? wp_unslash($_POST['svg_viewer_pan_mode']) : '';
+        $pan_mode_input = isset($_POST['svg_viewer_pan_mode']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_pan_mode'])) : '';
         if ($pan_mode_input === '') {
             delete_post_meta($post_id, '_svg_pan_mode');
         } else {
@@ -2550,7 +2557,7 @@ class SVG_Viewer
             update_post_meta($post_id, '_svg_pan_mode', $pan_mode_value);
         }
 
-        $zoom_mode_input = isset($_POST['svg_viewer_zoom_mode']) ? wp_unslash($_POST['svg_viewer_zoom_mode']) : '';
+        $zoom_mode_input = isset($_POST['svg_viewer_zoom_mode']) ? sanitize_text_field(wp_unslash($_POST['svg_viewer_zoom_mode'])) : '';
         $zoom_mode_value = $this->normalize_zoom_mode($zoom_mode_input);
         if ($zoom_mode_value === 'super_scroll') {
             delete_post_meta($post_id, '_svg_zoom_mode');
@@ -2559,8 +2566,15 @@ class SVG_Viewer
         }
 
         foreach ($numeric_fields as $meta_key => $post_key) {
-            if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
-                $value = floatval(wp_unslash($_POST[$post_key]));
+            $raw_value = filter_input(INPUT_POST, $post_key, FILTER_UNSAFE_RAW, FILTER_NULL_ON_FAILURE);
+            if (is_string($raw_value)) {
+                $raw_value = sanitize_text_field(wp_unslash($raw_value));
+            } elseif ($raw_value === null) {
+                $raw_value = '';
+            }
+
+            if ($raw_value !== '') {
+                $value = floatval($raw_value);
                 update_post_meta($post_id, $meta_key, $value);
             } else {
                 delete_post_meta($post_id, $meta_key);
@@ -2568,8 +2582,15 @@ class SVG_Viewer
         }
 
         foreach ($text_fields as $meta_key => $post_key) {
-            if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
-                $value = wp_kses_post(wp_unslash($_POST[$post_key]));
+            $raw_value = filter_input(INPUT_POST, $post_key, FILTER_UNSAFE_RAW, FILTER_NULL_ON_FAILURE);
+            if (is_string($raw_value)) {
+                $raw_value = wp_unslash($raw_value);
+            } elseif ($raw_value === null) {
+                $raw_value = '';
+            }
+
+            if ($raw_value !== '') {
+                $value = wp_kses_post($raw_value);
                 update_post_meta($post_id, $meta_key, $value);
             } else {
                 delete_post_meta($post_id, $meta_key);
@@ -2583,8 +2604,14 @@ class SVG_Viewer
         );
 
         foreach ($color_fields as $meta_key => $post_key) {
-            if (isset($_POST[$post_key]) && $_POST[$post_key] !== '') {
-                $raw_color = wp_unslash($_POST[$post_key]);
+            $raw_color = filter_input(INPUT_POST, $post_key, FILTER_UNSAFE_RAW, FILTER_NULL_ON_FAILURE);
+            if (is_string($raw_color)) {
+                $raw_color = wp_unslash($raw_color);
+            } elseif ($raw_color === null) {
+                $raw_color = '';
+            }
+
+            if ($raw_color !== '') {
                 $sanitized_color = $this->sanitize_color_value($raw_color);
 
                 if ($sanitized_color !== '') {
@@ -2700,4 +2727,4 @@ class SVG_Viewer
 }
 
 // Initialize plugin
-SVG_Viewer::get_instance();
+BTSVVI_Viewer::get_instance();
