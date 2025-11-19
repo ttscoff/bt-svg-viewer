@@ -1,3 +1,21 @@
+### 1.0.16
+
+2025-11-19 10:21
+
+#### CHANGED
+
+- Prefix the main PHP surface (BTSVVI_Viewer, option keys, hooks) to avoid naming collisions.
+
+#### IMPROVED
+
+- More extensive test suite
+- Initialize viewer instances via enqueued scripts and a JS queue to remove inline JS.
+
+#### FIXED
+
+- Sanitize and validate all defaults and preset inputs before saving.
+- Block direct file access on the bootstrap path and harden cached admin markup handling.
+
 ### 1.0.14
 
 2025-11-10 07:44
