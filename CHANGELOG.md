@@ -1,3 +1,21 @@
+### 1.0.20
+
+2025-11-28 04:17
+
+#### CHANGED
+
+- Rename shortcode hooks, options, post types, and meta keys to the btsvviewer prefix with automatic migration for legacy data.
+- Continue honoring existing [svg_viewer] embeds by registering the legacy shortcode and admin-post handlers alongside the new ones.
+
+#### IMPROVED
+
+- Scope localized JS globals (btsvviewerConfig, btsvviewerAdmin, window.btsvviewerInstances) to avoid conflicts with other plugins.
+- Embed the resolved SVG URL in markup data attributes so presets and tests can read it without extra JavaScript.
+
+#### FIXED
+
+- Align unit tests and runtime assets with the renamed identifiers to keep the suite green.
+
 ### 1.0.19
 
 2025-11-19 10:40
