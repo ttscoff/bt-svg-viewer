@@ -1,153 +1,96 @@
-<h3 id="1.0.23">1.0.23</h3>
-
-<p>2026&#8211;02&#8211;01 04:30</p>
-
-<h3 id="1.0.22">1.0.22</h3>
-
-<p>2025&#8211;11&#8211;28 04:26</p>
-
-<h3 id="1.0.21">1.0.21</h3>
-
-<p>2025&#8211;11&#8211;28 04:25</p>
-
-<h3 id="1.0.20">1.0.20</h3>
-
-<p>2025&#8211;11&#8211;28 04:17</p>
-
+<h3 id="1024">1.0.24</h3>
+<p>2026-02-01 05:28</p>
+<h3 id="1023">1.0.23</h3>
+<p>2026-02-01 04:30</p>
+<h3 id="1022">1.0.22</h3>
+<p>2025-11-28 04:26</p>
+<h3 id="1021">1.0.21</h3>
+<p>2025-11-28 04:25</p>
+<h3 id="1020">1.0.20</h3>
+<p>2025-11-28 04:17</p>
 <h4 id="changed">CHANGED</h4>
-
 <ul>
 <li>Rename shortcode hooks, options, post types, and meta keys to the btsvviewer prefix with automatic migration for legacy data.</li>
 <li>Continue honoring existing [svg_viewer] embeds by registering the legacy shortcode and admin-post handlers alongside the new ones.</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Scope localized JS globals (btsvviewerConfig, btsvviewerAdmin, window.btsvviewerInstances) to avoid conflicts with other plugins.</li>
 <li>Embed the resolved SVG URL in markup data attributes so presets and tests can read it without extra JavaScript.</li>
 </ul>
-
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Align unit tests and runtime assets with the renamed identifiers to keep the suite green.</li>
 </ul>
-
-<h3 id="1.0.19">1.0.19</h3>
-
-<p>2025&#8211;11&#8211;19 10:40</p>
-
+<h3 id="1019">1.0.19</h3>
+<p>2025-11-19 10:40</p>
 <h4 id="changed">CHANGED</h4>
-
 <ul>
 <li>Changed class name to use plugin prefix</li>
 </ul>
-
-<h3 id="1.0.18">1.0.18</h3>
-
-<p>2025&#8211;11&#8211;19 10:39</p>
-
+<h3 id="1018">1.0.18</h3>
+<p>2025-11-19 10:39</p>
 <h4 id="changed">CHANGED</h4>
-
 <ul>
 <li>Changed class name to use plugin prefix</li>
 </ul>
-
-<h3 id="1.0.17">1.0.17</h3>
-
-<p>2025&#8211;11&#8211;19 10:28</p>
-
-<h3 id="1.0.16">1.0.16</h3>
-
-<p>2025&#8211;11&#8211;19 10:22</p>
-
+<h3 id="1017">1.0.17</h3>
+<p>2025-11-19 10:28</p>
+<h3 id="1016">1.0.16</h3>
+<p>2025-11-19 10:22</p>
 <h4 id="changed">CHANGED</h4>
-
 <ul>
 <li>Prefix the main PHP surface (BTSVVI_Viewer, option keys, hooks) to avoid naming collisions.</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>More extensive test suite</li>
 <li>Initialize viewer instances via enqueued scripts and a JS queue to remove inline JS.</li>
 </ul>
-
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Sanitize and validate all defaults and preset inputs before saving.</li>
 <li>Block direct file access on the bootstrap path and harden cached admin markup handling.</li>
 </ul>
-
-<h3 id="1.0.14">1.0.14</h3>
-
-<p>2025&#8211;11&#8211;10 07:44</p>
-
+<h3 id="1014">1.0.14</h3>
+<p>2025-11-10 07:44</p>
 <h4 id="changed">CHANGED</h4>
-
 <ul>
 <li>Rename plugin and all text domains to BT SVG Viewer</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Add screenshots for Plugin repository display</li>
 </ul>
-
-<h3 id="1.0.13">1.0.13</h3>
-
-<p>2025&#8211;11&#8211;10 05:24</p>
-
+<h3 id="1013">1.0.13</h3>
+<p>2025-11-10 05:24</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Fix readme.txt for plugin submission</li>
 </ul>
-
-<h3 id="1.0.12">1.0.12</h3>
-
-<p>2025&#8211;11&#8211;10 04:59</p>
-
+<h3 id="1012">1.0.12</h3>
+<p>2025-11-10 04:59</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Rename without WP for plugin submission</li>
 </ul>
-
-<h3 id="1.0.10">1.0.10</h3>
-
-<p>2025&#8211;11&#8211;09 13:24</p>
-
+<h3 id="1010">1.0.10</h3>
+<p>2025-11-09 13:24</p>
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Add plugins page settings link</li>
 </ul>
-
-<h3 id="1.0.9">1.0.9</h3>
-
-<p>2025&#8211;11&#8211;09 11:20</p>
-
+<h3 id="109">1.0.9</h3>
+<p>2025-11-09 11:20</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Broken icon/button text after plugin submission fixes</li>
 </ul>
-
-<h3 id="1.0.8">1.0.8</h3>
-
-<p>2025&#8211;11&#8211;09 10:33</p>
-
-<h3 id="1.0.7">1.0.7</h3>
-
-<p>2025&#8211;11&#8211;09 10:28</p>
-
+<h3 id="108">1.0.8</h3>
+<p>2025-11-09 10:33</p>
+<h3 id="107">1.0.7</h3>
+<p>2025-11-09 10:28</p>
 <h4 id="new">NEW</h4>
-
 <ul>
 <li>Document shortcode aliases for button colors</li>
 <li>Provide example shortcode using button_bg/button_fg aliases</li>
@@ -155,9 +98,7 @@
 <li>Pan/zoom behavior shortcode options and gesture captions</li>
 <li>Update plugin readme highlights and upgrade notice for animated zoom release</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Note preset color pickers for fill/border/foreground</li>
 <li>Add styling guidance for CSS custom properties</li>
@@ -170,96 +111,62 @@
 <li>Admin auto-centers newly selected SVGs for easier tweaking</li>
 <li>Zoom controls snap to min/max and clearly show disabled states</li>
 </ul>
-
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Captured center values now match the Center View preview</li>
 <li>Preset pan mode overrides persist when switching between scroll and drag</li>
 </ul>
-
-<h3 id="1.1.0">1.1.0</h3>
-
-<p>2025&#8211;11&#8211;09 14:10</p>
-
+<h3 id="110">1.1.0</h3>
+<p>2025-11-09 14:10</p>
 <h4 id="new">NEW</h4>
-
 <ul>
 <li>Pan and zoom interaction modes configurable via shortcode/preset, with automatic gesture captions.</li>
 <li>Smooth, cursor-focused zoom animations for wheel, slider, and modifier-click gestures.</li>
 <li>Defaults tab option to enable asset cache busting for debugging (auto-enabled on <code>dev.*</code> / <code>wptest.*</code> domains).</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Drag panning now tracks 1:1 with the pointer and ignores stray wheel input.</li>
 <li>Zooming keeps the focus point locked under the cursor while preventing unintended panning.</li>
 </ul>
-
-<h3 id="1.0.6">1.0.6</h3>
-
-<p>2025&#8211;11&#8211;08 10:35</p>
-
+<h3 id="106">1.0.6</h3>
+<p>2025-11-08 10:35</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>CSS caching not keeping up with versions</li>
 </ul>
-
-<h3 id="1.0.5">1.0.5</h3>
-
-<p>2025&#8211;11&#8211;08 10:13</p>
-
+<h3 id="105">1.0.5</h3>
+<p>2025-11-08 10:13</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Bad permissions in zip distro</li>
 </ul>
-
-<h3 id="1.0.4">1.0.4</h3>
-
-<p>2025&#8211;11&#8211;08 08:54</p>
-
+<h3 id="104">1.0.4</h3>
+<p>2025-11-08 08:54</p>
 <h4 id="fixed">FIXED</h4>
-
 <ul>
 <li>Fixing deploy process</li>
 </ul>
-
-<h3 id="1.0.3">1.0.3</h3>
-
-<p>2025&#8211;11&#8211;08 08:47</p>
-
+<h3 id="103">1.0.3</h3>
+<p>2025-11-08 08:47</p>
 <h3 id="fixed">FIXED</h3>
-
 <ul>
 <li>Changelog duplication</li>
 </ul>
-
-<h3 id="1.0.2">1.0.2</h3>
-
-<p>2025&#8211;11&#8211;08 08:39</p>
-
+<h3 id="102">1.0.2</h3>
+<p>2025-11-08 08:39</p>
 <h4 id="new">NEW</h4>
-
 <ul>
 <li>DE, ES, FR, IT localizations</li>
 <li>Help and Changelog tabs in admin panel</li>
 </ul>
-
 <h4 id="improved">IMPROVED</h4>
-
 <ul>
 <li>Major README overhaul</li>
 </ul>
-
-<h3 id="1.0.1">1.0.1</h3>
-
-<p>2025&#8211;11&#8211;08 06:40</p>
-
+<h3 id="101">1.0.1</h3>
+<p>2025-11-08 06:40</p>
 <h4 id="new">NEW</h4>
-
 <ul>
 <li>Admin panel where you can create custom SVG posts with all configuration options stored</li>
 <li>Buttons can be configured to left, right, top, bottom</li>
@@ -268,13 +175,9 @@
 <li>Preview in admin panel shows how buttons will appear</li>
 <li>Preview in admin panel can be panned/zoomed and then its current state can be saved as the initial state for the front-end display</li>
 </ul>
-
-<h2 id="btsvgviewer1.0.0">BT SVG Viewer 1.0.0</h2>
-
-<p>2025&#8211;11&#8211;07 08:00</p>
-
+<h2 id="bt-svg-viewer-100">BT SVG Viewer 1.0.0</h2>
+<p>2025-11-07 08:00</p>
 <h4 id="new">NEW</h4>
-
 <ul>
 <li>Initial release</li>
 <li>Shortcode for creating an SVG viewer with zoom and pan</li>

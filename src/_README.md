@@ -31,6 +31,12 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 
 ---
 <!--END GITHUB-->
+<!--WP-->
+<!--TOC min2 max4-->
+
+---
+<!--END WP-->
+
 ## Installation
 
 1. **Unzip the plugin archive**

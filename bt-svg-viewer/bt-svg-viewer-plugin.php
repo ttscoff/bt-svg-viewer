@@ -43,7 +43,6 @@ class BT_SVG_Viewer
     private $current_presets_admin_tab = null;
     private $asset_version = null;
     private $defaults_option_key = 'btsvviewer_preset_defaults';
-    private $migration_flag_option = 'btsvviewer_prefix_migrated';
 
     public static function get_instance()
     {
@@ -56,7 +55,6 @@ class BT_SVG_Viewer
     public function __construct()
     {
         $this->plugin_version = $this->read_plugin_version();
-        $this->maybe_migrate_legacy_prefix_usage();
         add_shortcode('btsvviewer', array($this, 'render_shortcode'));
         add_shortcode($this->get_legacy_shortcode_tag(), array($this, 'render_shortcode'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
@@ -175,145 +173,6 @@ class BT_SVG_Viewer
     }
 
     /**
-     * Upgrade legacy identifiers to the new btsvviewer prefix.
-     *
-     * @return void
-     */
-    private function maybe_migrate_legacy_prefix_usage()
-    {
-        $already_migrated = get_option($this->migration_flag_option, '');
-        if ($already_migrated === '1') {
-            return;
-        }
-
-        $legacy_prefix = $this->get_legacy_prefix();
-
-        $this->migrate_legacy_defaults_option($this->get_legacy_defaults_option_key());
-        $this->migrate_legacy_post_type($legacy_prefix . '_preset');
-        $this->migrate_legacy_meta_keys($this->get_legacy_meta_prefix());
-
-        update_option($this->migration_flag_option, '1');
-    }
-
-    /**
-     * Promote stored defaults keyed under the legacy option name.
-     *
-     * @param string $legacy_option_key
-     * @return void
-     */
-    private function migrate_legacy_defaults_option($legacy_option_key)
-    {
-        $legacy_defaults = get_option($legacy_option_key, null);
-
-        if ($legacy_defaults === false || $legacy_defaults === null) {
-            return;
-        }
-
-        if (is_array($legacy_defaults)) {
-            $legacy_defaults = $this->convert_legacy_field_names($legacy_defaults);
-        }
-
-        $current_defaults = get_option($this->defaults_option_key, null);
-
-        if ($current_defaults === false || $current_defaults === null || $current_defaults === array()) {
-            update_option($this->defaults_option_key, $legacy_defaults);
-        }
-
-        delete_option($legacy_option_key);
-    }
-
-    /**
-     * Update stored presets that still use the legacy custom post type.
-     *
-     * @param string $legacy_post_type
-     * @return void
-     */
-    private function migrate_legacy_post_type($legacy_post_type)
-    {
-        global $wpdb;
-
-        if (!isset($wpdb->posts)) {
-            return;
-        }
-
-        $wpdb->update(
-            $wpdb->posts,
-            array('post_type' => 'btsvviewer_preset'),
-            array('post_type' => $legacy_post_type)
-        );
-    }
-
-    /**
-     * Convert saved meta keys that still use the legacy prefix.
-     *
-     * @param string $legacy_meta_prefix
-     * @return void
-     */
-    private function migrate_legacy_meta_keys($legacy_meta_prefix)
-    {
-        global $wpdb;
-
-        if (!isset($wpdb->postmeta)) {
-            return;
-        }
-
-        $suffixes = array(
-            'src',
-            'attachment_id',
-            'height',
-            'min_zoom',
-            'max_zoom',
-            'initial_zoom',
-            'zoom_step',
-            'center_x',
-            'center_y',
-            'title',
-            'caption',
-            'controls_position',
-            'controls_buttons',
-            'button_fill',
-            'button_border',
-            'button_foreground',
-            'pan_mode',
-            'zoom_mode',
-        );
-
-        foreach ($suffixes as $suffix) {
-            $legacy_key = $legacy_meta_prefix . $suffix;
-            $new_key = '_btsvviewer_' . $suffix;
-
-            $wpdb->update(
-                $wpdb->postmeta,
-                array('meta_key' => $new_key),
-                array('meta_key' => $legacy_key)
-            );
-        }
-    }
-
-    /**
-     * Replace legacy preset field keys with the btsvviewer_* prefix.
-     *
-     * @param array $data
-     * @return array
-     */
-    private function convert_legacy_field_names($data)
-    {
-        $legacy_field_prefix = $this->get_legacy_prefix() . '_';
-        $converted = array();
-
-        foreach ($data as $key => $value) {
-            if (strpos($key, $legacy_field_prefix) === 0) {
-                $converted['btsvviewer_' . substr($key, strlen($legacy_field_prefix))] = $value;
-                continue;
-            }
-
-            $converted[$key] = $value;
-        }
-
-        return $converted;
-    }
-
-    /**
      * Legacy shortcode prefix split to avoid reintroducing the literal string.
      *
      * @return string
@@ -321,26 +180,6 @@ class BT_SVG_Viewer
     private function get_legacy_prefix()
     {
         return 'svg' . '_viewer';
-    }
-
-    /**
-     * Legacy meta key prefix equivalent to _svg_.
-     *
-     * @return string
-     */
-    private function get_legacy_meta_prefix()
-    {
-        return '_' . 'svg' . '_';
-    }
-
-    /**
-     * Legacy defaults option key (previous preset defaults option).
-     *
-     * @return string
-     */
-    private function get_legacy_defaults_option_key()
-    {
-        return $this->get_legacy_prefix() . '_preset_defaults';
     }
 
     /**
@@ -1315,7 +1154,9 @@ class BT_SVG_Viewer
 
         wp_enqueue_script('bt-svg-viewer-script');
 
-        $config_json = wp_json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // Use default wp_json_encode() so slashes are escaped (no JSON_UNESCAPED_SLASHES).
+        // That prevents '</' in config values from breaking out of the script tag (XSS).
+        $config_json = wp_json_encode($config);
 
         if (false === $config_json) {
             return;
@@ -1945,7 +1786,16 @@ class BT_SVG_Viewer
             return $cached_changelog;
         }
 
-        $sanitized = wp_kses_post($raw_html);
+        // Use wp_kses with a custom allowed tags list for changelog HTML
+        $allowed_tags = wp_kses_allowed_html('post');
+        $allowed_tags['h1'] = array('id' => true, 'class' => true);
+        $allowed_tags['h2'] = array('id' => true, 'class' => true);
+        $allowed_tags['h3'] = array('id' => true, 'class' => true);
+        $allowed_tags['h4'] = array('id' => true, 'class' => true);
+        $allowed_tags['h5'] = array('id' => true, 'class' => true);
+        $allowed_tags['h6'] = array('id' => true, 'class' => true);
+
+        $sanitized = wp_kses($raw_html, $allowed_tags);
         $cached_changelog = $sanitized;
 
         $cache_ttl = defined('DAY_IN_SECONDS') ? DAY_IN_SECONDS : 86400;
