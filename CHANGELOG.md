@@ -4,7 +4,14 @@
 
 ### 1.0.23
 
-2026-02-01 04:30
+2026-02-06 11:17
+
+#### CHANGED
+
+- Removed legacy prefix migration; no production users had data to migrate from the old slug/options/meta.
+- Readme.txt "Tested up to" set to 6.9 for plugin directory compatibility.
+- Changelog HTML sanitization uses wp_kses with an explicit heading allowlist instead of wp_kses_post.
+- Inline viewer config JSON now escaped with default wp_json_encode() so slashes in config (e.g. svgUrl) cannot break out of the script tag (XSS).
 
 ### 1.0.22
 
