@@ -19,7 +19,7 @@ jobs:
                   fetch-depth: 0
 
             - name: Deploy plugin
-              uses: 10up/action-wordpress-plugin-deploy@v2.3.0
+              uses: 10up/action-wordpress-plugin-deploy@stable
               env:
                   SVN_USERNAME: ${{ secrets.WPORG_SVN_USERNAME }}
                   SVN_PASSWORD: ${{ secrets.WPORG_SVN_PASSWORD }}
