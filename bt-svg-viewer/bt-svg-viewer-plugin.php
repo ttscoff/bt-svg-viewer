@@ -3,7 +3,7 @@
  * Plugin Name: BT SVG Viewer
  * Plugin URI: https://github.com/ttscoff/bt-svg-viewer/
  * Description: Embed interactive SVG files with zoom and pan controls
- * Version: 1.0.28
+ * Version: 1.0.29
  * Author: Brett Terpstra
  * Author URI: https://brettterpstra.com
  * License: GPLv2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 class BT_SVG_Viewer
 {
     private static $instance = null;
-    private $plugin_version = '1.0.28';
+    private $plugin_version = '1.0.29';
     private $preset_meta_fields = array(
         'btsvviewer_src' => '_btsvviewer_src',
         'btsvviewer_height' => '_btsvviewer_height',

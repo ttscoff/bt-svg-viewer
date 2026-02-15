@@ -9,6 +9,8 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 
 - [Contents](#contents)
 - [Installation](#installation)
+  - [Via WordPress Plugin directory](#via-wordpress-plugin-directory)
+  - [Manual Installation](#manual-installation)
 - [Quick Start](#quick-start)
 - [Shortcode Reference](#shortcode-reference)
   - [`controls_buttons` Cheat Sheet](#controls_buttons-cheat-sheet)
@@ -38,6 +40,12 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 
 
 ## Installation
+
+### Via WordPress Plugin directory
+
+BT-SVG-Viewer is available in the WordPress plugin directory. Search for `bt-svg-viewer` or go to <https://wordpress.org/plugins/bt-svg-viewer/>.
+
+### Manual Installation
 
 1. **Unzip the plugin archive**
    - Download [bt-svg-viewer.zip](github.com/ttscoff/bt-svg-viewer/releases/latest/download/bt-svg-viewer.zip).
