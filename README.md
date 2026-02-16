@@ -33,10 +33,10 @@ Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tool
 - [Changelog Highlights (1.1.0)](#changelog-highlights-110)
 - [License \& Credits](#license--credits)
 
----
 
 
 <!--TOC min2 max4-->
+
 
 ---
 
