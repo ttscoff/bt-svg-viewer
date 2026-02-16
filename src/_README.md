@@ -75,6 +75,8 @@ BT-SVG-Viewer is available in the WordPress plugin directory. Search for `bt-svg
 
 <!--END GITHUB-->
 
+
+<!--WP-->2. SVG Viewer on the front end<!--END WP-->
 ---
 
 ## Shortcode Reference
@@ -109,6 +111,8 @@ BT-SVG-Viewer is available in the WordPress plugin directory. Search for `bt-svg
 ![Left Sidebar](bt-svg-viewer/assets/screenshot-3.jpg)
 
 <!--END GITHUB-->
+
+<!--WP-->3. SVG Viewer with left sidebar<!--END WP-->
 
 ### `controls_buttons` Cheat Sheet
 
@@ -156,9 +160,11 @@ Example:
 
 <!--GITHUB-->
 
-![Screenshot 1](bt-svg-viewer/assets/screenshot-1.jpg)
+![SVG Preset Editor](bt-svg-viewer/assets/screenshot-1.jpg)
 
 <!--END GITHUB-->
+
+<!--WP-->1. SVG Preset Editor<!--END WP-->
 
 ### Location
 
