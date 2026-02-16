@@ -1,6 +1,8 @@
 
 # BT SVG Viewer
 
+![Banner](bt-svg-viewer/assets/banner-1544x500.jpg)
+
 Embed large SVG diagrams in WordPress with zoom, pan, center, and authoring tools. Recent releases add a visual preset editor, icon-based controls, deeper shortcode options, and configurable button colors.
 
 ---
@@ -67,6 +69,12 @@ BT-SVG-Viewer is available in the WordPress plugin directory. Search for `bt-svg
 - The SVG renders with default height (600px), zoom controls, pan/scroll behaviour, keyboard shortcuts, and responsive layout. Zoom buttons now gray out at the minimum/maximum zoom to make the limits obvious to visitors.
 - Existing shortcodes created before the rename continue to render, so archived posts don???t need updates.
 
+
+
+![Screenshot 2](/bt-svg-viewer/assets/screenshot-2.jpg)
+
+
+
 ---
 
 ## Shortcode Reference
@@ -95,6 +103,12 @@ BT-SVG-Viewer is available in the WordPress plugin directory. Search for `bt-svg
 | `id`                                               | number                              | ???                         | Reference a saved preset (admin). Inline attributes override preset values.                                                                      |
 
 > Changing the interaction defaults automatically inserts a helper caption (e.g. ???Cmd/Ctrl-click to zoom in??????) above your custom caption so visitors know the gesture.
+
+
+
+![Left Sidebar](bt-svg-viewer/assets/screenshot-3.jpg)
+
+
 
 ### `controls_buttons` Cheat Sheet
 
@@ -139,6 +153,12 @@ Example:
 ---
 
 ## Admin Preset Editor
+
+
+
+![Screenshot 1](bt-svg-viewer/assets/screenshot-1.jpg)
+
+
 
 ### Location
 
