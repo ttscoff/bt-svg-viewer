@@ -280,4 +280,32 @@ class BT_SVG_Viewer_Tests extends WP_UnitTestCase
         $this->assertTrue(wp_style_is('bt-svg-viewer-style', 'enqueued'));
     }
 
+    /**
+     * Block themes render post content before wp_enqueue_scripts. The shortcode
+     * must still register the script and queue viewer JSON so the front end boots.
+     */
+    public function test_shortcode_queues_viewer_init_before_wp_enqueue_scripts()
+    {
+        global $wp_scripts, $wp_styles;
+        $wp_scripts = new WP_Scripts();
+        $wp_styles = new WP_Styles();
+
+        $this->assertFalse(wp_script_is('bt-svg-viewer-script', 'registered'));
+
+        self::$plugin->render_shortcode(
+            array(
+                'src' => 'https://example.com/diagram.svg',
+            )
+        );
+
+        $this->assertTrue(wp_script_is('bt-svg-viewer-script', 'registered'));
+        $this->assertTrue(wp_script_is('bt-svg-viewer-script', 'enqueued'));
+
+        $after = wp_scripts()->get_data('bt-svg-viewer-script', 'after');
+        $this->assertIsArray($after);
+        $joined = implode("\n", $after);
+        $this->assertStringContainsString('BTSVVI_VIEWER_QUEUE', $joined);
+        $this->assertStringContainsString('https:\\/\\/example.com\\/diagram.svg', $joined);
+    }
+
 }

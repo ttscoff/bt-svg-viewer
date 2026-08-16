@@ -3,9 +3,9 @@ Contributors: bterp
 Donate link: https://brettterpstra.com/donate/
 Tags: svg, shortcode, maps, zoom, viewer
 Requires at least: 5.8
-Tested up to: 6.9
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.31
+Stable tag: 1.0.32
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 

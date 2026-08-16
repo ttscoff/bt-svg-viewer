@@ -5,3 +5,5 @@ vendor
 .DS_Store
 node_modules
 bt-svg-viewer.zip
+.r_completions~
+buildnotes.md

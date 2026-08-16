@@ -1,3 +1,13 @@
+### 1.0.32
+
+#### FIXED
+
+- Register frontend assets on `init` so viewer config still queues when block themes render shortcodes before `wp_enqueue_scripts` (WordPress 7.1 / Twenty Twenty-Five).
+
+#### CHANGED
+
+- Readme.txt "Tested up to" set to 7.1.
+
 #### IMPROVED
 
 - Add .wordpress-org assets folder

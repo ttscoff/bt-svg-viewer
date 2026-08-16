@@ -3,7 +3,7 @@
  * Plugin Name: BT SVG Viewer
  * Plugin URI: https://github.com/ttscoff/bt-svg-viewer/
  * Description: Embed interactive SVG files with zoom and pan controls
- * Version: 1.0.31
+ * Version: 1.0.32
  * Author: Brett Terpstra
  * Author URI: https://brettterpstra.com
  * License: GPLv2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
 class BT_SVG_Viewer
 {
     private static $instance = null;
-    private $plugin_version = '1.0.31';
+    private $plugin_version = '1.0.32';
     private $preset_meta_fields = array(
         'btsvviewer_src' => '_btsvviewer_src',
         'btsvviewer_height' => '_btsvviewer_height',
@@ -58,6 +58,7 @@ class BT_SVG_Viewer
         $this->plugin_version = $this->read_plugin_version();
         add_shortcode('btsvviewer', array($this, 'render_shortcode'));
         add_shortcode($this->get_legacy_shortcode_tag(), array($this, 'render_shortcode'));
+        add_action('init', array($this, 'register_frontend_assets'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
         add_filter('upload_mimes', array($this, 'svg_use_mimetypes'));
         add_action('init', array($this, 'register_preset_post_type'));
@@ -850,31 +851,43 @@ class BT_SVG_Viewer
     }
 
     /**
-     * Enqueue CSS and JS
+     * Register frontend CSS and JS so shortcodes can attach inline config
+     * before wp_enqueue_scripts runs (block themes render content first).
      */
-    public function enqueue_assets()
+    public function register_frontend_assets()
     {
         $asset_version = $this->get_asset_version('frontend');
 
-        wp_enqueue_style(
+        wp_register_style(
             'bt-svg-viewer-style',
             plugins_url('css/bt-svg-viewer.css', __FILE__),
             array(),
             $asset_version
         );
 
-        wp_enqueue_script(
+        wp_register_script(
             'bt-svg-viewer-script',
             plugins_url('js/bt-svg-viewer.js', __FILE__),
             array(),
             $asset_version,
             true
         );
+    }
+
+    /**
+     * Enqueue CSS and JS
+     */
+    public function enqueue_assets()
+    {
+        $this->register_frontend_assets();
+
+        wp_enqueue_style('bt-svg-viewer-style');
+        wp_enqueue_script('bt-svg-viewer-script');
 
         // Pass plugin URL to JavaScript
         wp_localize_script('bt-svg-viewer-script', 'btsvviewerConfig', array(
             'pluginUrl' => plugins_url('', __FILE__),
-            'assetVersion' => $asset_version,
+            'assetVersion' => $this->get_asset_version('frontend'),
         ));
     }
 
@@ -1153,6 +1166,8 @@ class BT_SVG_Viewer
             return;
         }
 
+        $this->register_frontend_assets();
+        wp_enqueue_style('bt-svg-viewer-style');
         wp_enqueue_script('bt-svg-viewer-script');
 
         // Use default wp_json_encode() so slashes are escaped (no JSON_UNESCAPED_SLASHES).
